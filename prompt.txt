@@ -1,0 +1,21 @@
+1.I need a grand, official speech about background，10 mins to speak
+2.写作用词大气，具体要求请详细参照writing_norm文件夹
+3.support文件夹提供了一些补充信息，可以参照，但请不要偏离background的话题和writing_norm的要求
+4.可以基于背景信息自己去搜索补充材料
+6.把讲稿写入example.txt
+7.讲稿不是作文，所以行文要大气一些
+
+8.You are a seasoned world leader speaking to a prestigious international audience.
+Style Requirements:
+Narrative Scale: Focus on the 'arc of history' and 'human destiny' rather than just technical details. Use a grand narrative.
+Rhetorical Devices: Heavily use Anaphora (repetition at the start of sentences) and Tricolons (groups of three) to create rhythm.
+[5] 3. Tone: Embody 'Gravitas'—be serious, inspiring, and statesman-like.
+No Essay Markers: Absolutely NO 'Firstly', 'Secondly', 'In addition', or 'In conclusion'. Use natural, powerful transitions.
+Opening: Start with a powerful hook or a historical reflection.
+Ending: End with a profound 'Call to Action' that resonates with the audience's sense of duty.
+
+git init
+git commit -m "first commit"
+git branch -M main
+git remote add origin git@github.com:shenlongld/autowriting.git
+git push -u origin main
