@@ -1,11 +1,11 @@
+# 以下为10分钟版本，适合完整正式发言。
+10-Minute Version
+
 # 标题概括青海以绿水、绿电、绿算体现中国生态进步的主线。
 Title: From Green Water to Green Power to Green Computing: Qinghai's Practice in China's Ecological Progress
 
-# 开场称呼营造正式发言场合。
-Distinguished guests, ladies and gentlemen, friends,
-
-# 开篇点明青海主题，并从文明高度提出发展必须守护自然根基。
-Today, our theme is Qinghai: a highland province at the headwaters of great rivers, and a powerful window into China's ecological progress. In Qinghai, civilization is reminded of an ancient truth: the future of humankind is written not only in the rise of cities, the expansion of industry, or the acceleration of technology, but also in the clarity of water, the vitality of grasslands, the stability of climate, and the wisdom with which development is governed. A nation may build roads, factories, networks, and markets; yet if it fails to protect the natural foundations of life, its prosperity will be fragile, its progress incomplete, and its promise to the next generation unfulfilled.
+# 开场参照课堂讨论发言，直接说明代表中国并引出青海主题。
+Hello everyone. I am honored to represent China in today's discussion on environmental conservation, and I am especially honored to introduce Qinghai as a vivid example of China's ecological progress. After learning about conservation in practice and studying China's new environmental initiatives, I am excited to share how Qinghai has moved from green water to green power to green computing, and how this transformation shows China's effort to balance short-term development with long-term sustainability.
 
 # 本段明确发言主题：通过青海案例介绍中国生态进步与可持续发展问题。
 This presentation is an introduction to China's ecological progress through one powerful case: Qinghai. Our focus is not a slogan, but a transformation. Our question is not whether development matters, for development is essential to human dignity. Our question is how development can be pursued without exhausting the land that sustains it, without polluting the waters that nourish it, and without narrowing the future that belongs to those who come after us.
@@ -63,3 +63,42 @@ As we begin this presentation, I invite all of us to view Qinghai not merely as 
 
 # 结尾号召听众关注青海实践，并思考共同责任。
 Let this be the starting point of our discussion: from green water to green power to green computing, Qinghai demonstrates that ecological progress can be seen, measured, shared, and carried forward. Let us look carefully at this practice, think deeply about its meaning, and carry into our own choices the responsibility it reveals. For in the end, the rivers we protect, the energy we choose, and the technologies we build will decide not only the quality of development, but the quality of the future itself.
+
+# 以下为5分钟版本，适合课堂展示或视频发言。
+5-Minute Version
+
+# 标题概括5分钟版仍以青海绿色转型为主线。
+Title: Qinghai's Green Transformation: A Window into China's Ecological Progress
+
+# 开场参照示例，直接说明发言主题和两个核心问题。
+Hello everyone. I am honored to represent China in today's discussion on environmental conservation. Today, I would like to introduce Qinghai, a highland province at the source of the Yangtze River, the Yellow River, and the Lancang River. Through Qinghai's story, I will share how China's new environmental initiatives have brought tangible changes, and how China seeks to balance short-term economic development with long-term sustainability.
+
+# 本段介绍青海的生态地位，并说明为什么它能代表中国生态进步。
+Qinghai is often called China's "Water Tower." This name carries great responsibility. Water from Qinghai flows far beyond the plateau, supporting ecosystems, farms, cities, and industries downstream. In the past, some river source areas faced ecological pressure, including shrinking lakes, grassland degradation, and fragile water systems. For China, protecting Qinghai is not only a local task. It is part of protecting national ecological security and part of building a more sustainable path of modernization.
+
+# 本段概括青海从资源优势到绿色贡献的转变。
+The most important change in Qinghai can be described as a movement from natural strengths to green contributions. Qinghai has good water, strong sunlight, powerful wind, and vast land. But these resources do not automatically become progress. Through ecological protection, clean energy development, and digital innovation, Qinghai is now known for green water, green power, and green computing. This transformation shows that environmental protection is not separate from development. It can become the foundation of better development.
+
+# 本段用数据说明绿水建设和三江源保护成果。
+Green water is the first clear result. Since China launched major protection and restoration programs in Sanjiangyuan, Qinghai has strengthened the protection of mountains, rivers, forests, lakes, grasslands, and deserts. The Sanjiangyuan region now conserves about 40.895 billion cubic meters of water each year and sends roughly 60 to 90 billion cubic meters of source water to downstream areas annually. The main streams of the Yellow River, the Yangtze River, and the Lancang River in Qinghai maintain water quality at Grade II or above. These are tangible changes: cleaner water, stronger ecosystems, and safer river sources.
+
+# 本段说明群众参与和生态岗位让保护更可持续。
+These achievements are supported by institutions and people. Qinghai has built a river and lake chief system covering different administrative levels. More than 3,500 rivers and over 500 lakes have dedicated guardians. In Sanjiangyuan National Park, 17,211 herders serve as certified ecological conservation workers, and across the province there are more than 140,000 ecological public-service positions. This means local people are not only asked to protect nature; they also gain dignity, income, and a stronger connection with the land they protect.
+
+# 本段说明绿电发展如何带来能源转型和生态修复。
+Green power is another major change. By October 2025, Qinghai's clean energy installed capacity had exceeded 73 million kilowatts, accounting for more than 93 percent of the province's total power capacity. In Gonghe County, the Talatan area was once a barren stretch of sand and wind. Today, it has become a photovoltaic landscape of about 350 square kilometers. Solar panels generate electricity above, while grass grows and sheep graze below. This shows a new model: energy production, ecological restoration, and livelihood improvement can move together.
+
+# 本段说明青海绿电外送服务国家低碳发展。
+Qinghai's green power also serves other regions. The Qinghai-Henan ultra-high-voltage direct-current project stretches 1,587 kilometers and has sent more than 80 billion kilowatt-hours of green electricity from Qinghai over five years. Qinghai's green electricity now reaches 16 provincial-level regions, and cumulative outbound green electricity since the beginning of the 14th Five-Year Plan period has exceeded 110 billion kilowatt-hours. In other words, Qinghai is not only protecting its own environment; it is helping power China's wider low-carbon transition.
+
+# 本段介绍绿算，说明青海如何把绿电转化为数字时代的新优势。
+The next step is green computing. In the digital age, artificial intelligence, cloud services, and big data all require enormous amounts of electricity. If that electricity is high-carbon, digital growth will create new environmental pressure. Qinghai is taking another path by using green power to support computing. The China Unicom Sanjiangyuan National Big Data Base has reached around 9,000 petaflops of computing capacity and is expected to rise to about 13,000 petaflops. Qinghai has also built about 190,000 standard racks, and its computing scale has grown nearly fortyfold within a year. This is how green electricity becomes green intelligence.
+
+# 本段回答中国如何平衡短期发展与长期可持续。
+Qinghai also shows how China balances short-term development with long-term sustainability. The key is not to stop development, but to redefine it. Development that damages river sources, exhausts grasslands, or leaves ecological debt is not true progress. Qinghai protects what must be protected through national parks, river governance, and ecological red lines. At the same time, it develops clean energy, eco-tourism, organic agriculture and animal husbandry, and green computing. This balance allows ecological value to become economic strength.
+
+# 本段以木里煤田说明放弃不可持续发展路径的意义。
+The transformation of the Muli coalfield gives a serious lesson. Coal once brought economic benefits, but disorderly exploitation damaged the fragile ecology of the southern Qilian Mountains. In 2020, local mining enterprises were shut down, and restoration became a priority. Today, places such as Tianjun are turning toward ecological animal husbandry and tourism, with tourism revenue reaching 212 million yuan in 2024. This example shows that long-term responsibility sometimes requires the courage to leave behind short-term gains.
+
+# 结尾回扣青海实践，并发出面向讨论的号召。
+To conclude, Qinghai's practice helps us see China's ecological progress in concrete terms. We can see it in cleaner river sources, restored grasslands, green electricity, new computing power, and people's participation in conservation. From green water to green power to green computing, Qinghai shows that environmental initiatives can bring real change, and that sustainability can guide development rather than block it. As we continue this discussion, let us remember that the rivers we protect, the energy we choose, and the technologies we build will shape the future we share.
