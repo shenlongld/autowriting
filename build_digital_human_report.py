@@ -6,7 +6,7 @@ from xml.etree import ElementTree as ET
 
 from docx import Document
 from docx.enum.section import WD_SECTION
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -27,25 +27,26 @@ def clear_body(doc: Document) -> None:
             body.remove(child)
 
 
-def set_font(run, size=10.5, bold=False, color=None):
+def set_font(run, size=10.5, bold=False, color=None, east_asia="宋体"):
     run.font.name = "Times New Roman"
-    run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), east_asia)
     run.font.size = Pt(size)
     run.bold = bold
     if color:
         run.font.color.rgb = RGBColor(*color)
 
 
-def para(doc, text="", size=10.5, bold=False, align=None, first_line=True, space_after=4):
+def para(doc, text="", size=12, bold=False, align=None, first_line=True, space_after=4, east_asia="仿宋"):
     p = doc.add_paragraph()
     if align is not None:
         p.alignment = align
-    p.paragraph_format.line_spacing = 1.25
+    p.paragraph_format.line_spacing = Pt(20)
+    p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
     p.paragraph_format.space_after = Pt(space_after)
     if first_line:
         p.paragraph_format.first_line_indent = Cm(0.74)
     r = p.add_run(text)
-    set_font(r, size=size, bold=bold)
+    set_font(r, size=size, bold=bold, east_asia=east_asia)
     return p
 
 
@@ -56,7 +57,7 @@ def heading(doc, text, level=1):
     p.paragraph_format.keep_with_next = True
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     r = p.add_run(text)
-    set_font(r, size=15 if level == 1 else 12.5, bold=True)
+    set_font(r, size=15 if level == 1 else 12.5, bold=True, east_asia="黑体")
     return p
 
 
@@ -256,13 +257,13 @@ def build():
     sec.right_margin = Cm(3.17)
     normal = doc.styles["Normal"]
     normal.font.name = "Times New Roman"
-    normal._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
-    normal.font.size = Pt(10.5)
+    normal._element.rPr.rFonts.set(qn("w:eastAsia"), "仿宋")
+    normal.font.size = Pt(12)
 
-    p = para(doc, "人工智能伦理与治理-大作业", size=16, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, first_line=False, space_after=18)
+    p = para(doc, "人工智能伦理与治理-大作业", size=16, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, first_line=False, space_after=18, east_asia="黑体")
     p.paragraph_format.space_before = Pt(20)
-    para(doc, "题目：数字人领域的技术演进、伦理风险与治理路径研究", size=15, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, first_line=False, space_after=24)
-    para(doc, "摘  要", size=15, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, first_line=False, space_after=10)
+    para(doc, "题目：数字人领域的技术演进、伦理风险与治理路径研究", size=15, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, first_line=False, space_after=24, east_asia="黑体")
+    para(doc, "摘  要", size=15, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, first_line=False, space_after=10, east_asia="黑体")
     for text in [
         "数字人已经从依赖三维建模、动作捕捉和离线渲染的视觉产品，演化为由多模态大模型、语音合成、检索增强生成、实时渲染引擎和内容安全系统共同驱动的社会技术系统。其价值从虚拟偶像、品牌展示延伸到直播电商、金融客服、政务导办、教育陪练、文旅导览和适老陪伴等高频场景，技术资产也扩展为形象、声纹、人设、知识库、工具调用策略、标识链和审计日志的组合。",
         "数字人的风险具有交叉性。人脸、声纹、动作和交互语料进入训练管线后，会同时触及敏感个人信息、肖像声音权益、著作权、消费者保护、广告合规、平台责任和算法治理。深度伪造降低身份冒用成本，拟人化交互放大情感依赖和未成年人保护压力，逝者复活把人格利益、近亲属同意、悼念场景和商业利用边界推到前台。",
@@ -299,14 +300,8 @@ def build():
     para(doc, "原“大作业”模板脚注链接主要指向智能配送、外卖骑手、无人配送车和路径规划资料，无法支撑数字人主题中的生物识别信息、深度合成标识、拟人化互动、生成式 AI 训练数据、公开权和版权问题。修订稿删除旧脚注的可见引用，改用数字人治理直接相关来源，并逐项核验链接指向：个人信息保护法改为中国网信网转载中国人大网原文，深度合成规定改为中国网信网 2022 年 12 月 11 日发布页，标识办法保留中国网信网 2025 年通知页，欧盟 AI Act 保留 EUR-Lex 法规页，美国版权问题保留美国版权局 2025 年报告。以下链接按 2026 年 6 月 6 日可公开访问的信息整理，优先采用官方法规、国家标准、EUR-Lex、美国版权局和标准组织材料。", first_line=True)
     for ref, url in references:
         p = para(doc, f"{ref}\n链接：{url}", align=WD_ALIGN_PARAGRAPH.LEFT, first_line=False, space_after=6)
-        p.paragraph_format.line_spacing = 1.15
-        for run in p.runs:
-            run.font.size = Pt(9.5)
-
-    for p in doc.paragraphs:
-        for run in p.runs:
-            if run.text:
-                run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+        p.paragraph_format.line_spacing = Pt(20)
+        p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
 
     doc.save(OUT)
     validate_text(OUT)
