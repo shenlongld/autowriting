@@ -1,52 +1,481 @@
-from pathlib import Path
+from __future__ import annotations
 
+import math
+from pathlib import Path
+from textwrap import wrap
+
+from PIL import Image, ImageDraw, ImageFont
 from pptx import Presentation
 from pptx.dml.color import RGBColor
-from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
-from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.util import Inches, Pt
 
 
 OUT_DIR = Path("generated")
+ASSET_DIR = OUT_DIR / "assets"
 OUT_FILE = OUT_DIR / "vllm_sosp2023_pagedattention_analysis.pptx"
 
-FONT = "Microsoft YaHei"
-FONT_FALLBACK = "Noto Sans CJK SC"
+SLIDE_W = Inches(13.333)
+SLIDE_H = Inches(7.5)
 
-NAVY = RGBColor(23, 43, 77)
+FONT_CN = "Microsoft YaHei"
+
+NAVY = RGBColor(15, 23, 42)
 BLUE = RGBColor(37, 99, 235)
 BLUE_DARK = RGBColor(30, 64, 175)
-BLUE_LIGHT = RGBColor(219, 234, 254)
 TEAL = RGBColor(13, 148, 136)
-TEAL_LIGHT = RGBColor(204, 251, 241)
 ORANGE = RGBColor(245, 158, 11)
-ORANGE_LIGHT = RGBColor(254, 243, 199)
 RED = RGBColor(220, 38, 38)
-RED_LIGHT = RGBColor(254, 226, 226)
 GREEN = RGBColor(22, 163, 74)
-GREEN_LIGHT = RGBColor(220, 252, 231)
-GRAY_900 = RGBColor(17, 24, 39)
 GRAY_700 = RGBColor(55, 65, 81)
 GRAY_500 = RGBColor(107, 114, 128)
 GRAY_300 = RGBColor(209, 213, 219)
-GRAY_200 = RGBColor(229, 231, 235)
 GRAY_100 = RGBColor(243, 244, 246)
 WHITE = RGBColor(255, 255, 255)
 
+P = {
+    "navy": (15, 23, 42),
+    "blue": (37, 99, 235),
+    "blue_dark": (30, 64, 175),
+    "blue_light": (219, 234, 254),
+    "teal": (13, 148, 136),
+    "teal_light": (204, 251, 241),
+    "orange": (245, 158, 11),
+    "orange_light": (254, 243, 199),
+    "red": (220, 38, 38),
+    "red_light": (254, 226, 226),
+    "green": (22, 163, 74),
+    "green_light": (220, 252, 231),
+    "slate": (71, 85, 105),
+    "gray": (148, 163, 184),
+    "grid": (226, 232, 240),
+    "panel": (248, 250, 252),
+    "white": (255, 255, 255),
+}
 
-def emu(value):
-    return Inches(value)
+
+def emu(x: float):
+    return Inches(x)
 
 
-def set_font(run, size=16, bold=False, color=NAVY):
-    run.font.name = FONT
+def font_path(bold: bool = False) -> str:
+    candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+    ]
+    for candidate in candidates:
+        if Path(candidate).exists():
+            return candidate
+    return candidates[0]
+
+
+def pil_font(size: int, bold: bool = False):
+    return ImageFont.truetype(font_path(bold), size)
+
+
+def text_bbox(draw: ImageDraw.ImageDraw, xy, text: str, font):
+    return draw.textbbox(xy, text, font=font)
+
+
+def centered_text(draw, box, text, font, fill=P["navy"]):
+    x1, y1, x2, y2 = box
+    bbox = text_bbox(draw, (0, 0), text, font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    draw.text((x1 + (x2 - x1 - tw) / 2, y1 + (y2 - y1 - th) / 2 - 2), text, font=font, fill=fill)
+
+
+def rounded_box(draw, box, fill, outline=None, radius=26, width=3, shadow=True):
+    x1, y1, x2, y2 = box
+    if shadow:
+        draw.rounded_rectangle((x1 + 10, y1 + 12, x2 + 10, y2 + 12), radius=radius, fill=(226, 232, 240))
+    draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width if outline else 1)
+
+
+def wrap_text(draw, text: str, font, max_width: int):
+    words = text.split()
+    lines = []
+    line = ""
+    for word in words:
+        candidate = word if not line else f"{line} {word}"
+        bbox = text_bbox(draw, (0, 0), candidate, font)
+        if bbox[2] - bbox[0] <= max_width:
+            line = candidate
+        else:
+            if line:
+                lines.append(line)
+            line = word
+    if line:
+        lines.append(line)
+    return lines
+
+
+def draw_wrapped(draw, xy, text, font, fill, max_width, line_gap=8):
+    x, y = xy
+    for line in wrap_text(draw, text, font, max_width):
+        draw.text((x, y), line, font=font, fill=fill)
+        y += font.size + line_gap
+    return y
+
+
+def arrow(draw, start, end, fill=P["slate"], width=7, head=18):
+    x1, y1 = start
+    x2, y2 = end
+    draw.line((x1, y1, x2, y2), fill=fill, width=width)
+    angle = math.atan2(y2 - y1, x2 - x1)
+    left = (x2 - head * math.cos(angle - math.pi / 6), y2 - head * math.sin(angle - math.pi / 6))
+    right = (x2 - head * math.cos(angle + math.pi / 6), y2 - head * math.sin(angle + math.pi / 6))
+    draw.polygon([(x2, y2), left, right], fill=fill)
+
+
+def base_canvas(title: str, subtitle: str = ""):
+    img = Image.new("RGB", (1600, 1320), P["white"])
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle((28, 28, 1572, 1292), radius=42, fill=P["panel"], outline=P["grid"], width=3)
+    draw.text((86, 72), title, font=pil_font(48, True), fill=P["navy"])
+    if subtitle:
+        draw.text((90, 135), subtitle, font=pil_font(25), fill=P["slate"])
+    return img, draw
+
+
+def metric_badge(draw, x, y, label, value, color):
+    rounded_box(draw, (x, y, x + 310, y + 120), fill=P["white"], outline=color, radius=28, width=4)
+    draw.text((x + 28, y + 24), value, font=pil_font(36, True), fill=color)
+    draw.text((x + 30, y + 76), label, font=pil_font(20), fill=P["slate"])
+
+
+def save(img: Image.Image, name: str) -> Path:
+    path = ASSET_DIR / name
+    img.save(path, quality=95)
+    return path
+
+
+def slide01_cover():
+    img, draw = base_canvas("vLLM Serving System", "PagedAttention turns KV cache into paged GPU memory")
+    nodes = [
+        ("Requests", "Prompt + sampling params", P["blue_light"], P["blue"]),
+        ("Scheduler", "continuous batching", P["teal_light"], P["teal"]),
+        ("Block Manager", "allocate / free pages", P["orange_light"], P["orange"]),
+        ("PagedAttention", "block table lookup", P["green_light"], P["green"]),
+    ]
+    y = 360
+    for i, (name, desc, fill, line) in enumerate(nodes):
+        x = 125 + i * 350
+        rounded_box(draw, (x, y, x + 270, y + 185), fill=fill, outline=line, radius=34, width=5)
+        draw.text((x + 28, y + 42), name, font=pil_font(31, True), fill=P["navy"])
+        draw_wrapped(draw, (x + 30, y + 92), desc, pil_font(22), P["slate"], 210, 4)
+        if i < len(nodes) - 1:
+            arrow(draw, (x + 280, y + 92), (x + 335, y + 92), P["slate"], width=7)
+    rounded_box(draw, (520, 680, 1085, 865), fill=P["white"], outline=P["blue"], radius=34, width=5)
+    draw.text((565, 725), "Result: more live sequences per GPU", font=pil_font(35, True), fill=P["navy"])
+    draw.text((580, 790), "same model weights, much better KV cache economics", font=pil_font(24), fill=P["slate"])
+    metric_badge(draw, 145, 980, "Throughput vs HF", "22-28x", P["blue"])
+    metric_badge(draw, 645, 980, "Throughput vs FT", "2-3x", P["teal"])
+    metric_badge(draw, 1145, 980, "KV waste", "<4%", P["green"])
+    return save(img, "slide_01_system_overview.png")
+
+
+def slide02_memory_bottleneck():
+    img, draw = base_canvas("KV Cache Memory Waste", "Why contiguous reservation limits batch size")
+    chart = (180, 265, 1020, 1040)
+    x0, y0, x1, y1 = chart
+    draw.line((x0, y1, x1, y1), fill=P["gray"], width=3)
+    draw.line((x0, y0, x0, y1), fill=P["gray"], width=3)
+    for pct in range(0, 101, 20):
+        y = y1 - int((y1 - y0) * pct / 100)
+        draw.line((x0 - 12, y, x1, y), fill=P["grid"], width=2)
+        draw.text((x0 - 78, y - 14), f"{pct}%", font=pil_font(20), fill=P["slate"])
+
+    stacks = [
+        ("Contiguous\nallocation", [("Useful KV", 25, P["blue"]), ("Internal frag.", 25, P["orange"]),
+                                    ("External frag.", 20, P["red"]), ("Reservation", 30, P["gray"])]),
+        ("PagedAttention", [("Useful KV", 96, P["teal"]), ("Waste", 4, P["orange"])]),
+    ]
+    bar_w = 190
+    for idx, (label, values) in enumerate(stacks):
+        bx = x0 + 190 + idx * 390
+        current = y1
+        for name, pct, color in values:
+            h = int((y1 - y0) * pct / 100)
+            current -= h
+            draw.rounded_rectangle((bx, current, bx + bar_w, current + h), radius=8, fill=color)
+            if pct >= 12:
+                centered_text(draw, (bx, current, bx + bar_w, current + h), f"{pct}%", pil_font(24, True), P["white"])
+        for j, line in enumerate(label.split("\n")):
+            centered_text(draw, (bx - 55, y1 + 28 + j * 32, bx + bar_w + 55, y1 + 62 + j * 32), line, pil_font(24, True), P["navy"])
+
+    legend_y = 345
+    for name, color in [("Useful KV", P["blue"]), ("Fragmentation", P["orange"]), ("Reservation", P["gray"]), ("vLLM compact", P["teal"])]:
+        draw.rounded_rectangle((1110, legend_y, 1148, legend_y + 38), radius=9, fill=color)
+        draw.text((1170, legend_y + 4), name, font=pil_font(24), fill=P["navy"])
+        legend_y += 62
+    rounded_box(draw, (1085, 710, 1450, 955), fill=P["white"], outline=P["blue"], radius=28, width=4)
+    draw.text((1125, 750), "Batch Size is memory-bound", font=pil_font(28, True), fill=P["navy"])
+    draw_wrapped(draw, (1125, 805), "KV cache grows with batch, context length and layers. Waste directly reduces the number of concurrent requests.", pil_font(23), P["slate"], 290)
+    return save(img, "slide_02_memory_bottleneck.png")
+
+
+def slide03_pagedattention():
+    img, draw = base_canvas("PagedAttention Mapping", "Logical token blocks are mapped to physical KV pages")
+    # Logical blocks
+    draw.text((115, 280), "Logical blocks of one sequence", font=pil_font(29, True), fill=P["navy"])
+    logical = []
+    for i in range(6):
+        x = 120 + i * 130
+        logical.append((x + 58, 435))
+        rounded_box(draw, (x, 380, x + 108, y := 490), fill=P["blue_light"], outline=P["blue"], radius=20, width=4, shadow=False)
+        centered_text(draw, (x, 380, x + 108, y), f"L{i}", pil_font(28, True), P["blue_dark"])
+
+    # Page table
+    rounded_box(draw, (555, 600, 870, 1038), fill=P["white"], outline=P["teal"], radius=28, width=4)
+    draw.text((600, 633), "Block table", font=pil_font(31, True), fill=P["navy"])
+    mappings = [7, 2, 11, 4, 9, 14]
+    for i, p in enumerate(mappings):
+        y = 700 + i * 52
+        draw.rounded_rectangle((605, y, 705, y + 38), radius=8, fill=P["blue_light"])
+        draw.rounded_rectangle((725, y, 825, y + 38), radius=8, fill=P["teal_light"])
+        centered_text(draw, (605, y, 705, y + 38), f"L{i}", pil_font(20, True), P["blue_dark"])
+        centered_text(draw, (725, y, 825, y + 38), f"P{p}", pil_font(20, True), P["teal"])
+        arrow(draw, (706, y + 19), (724, y + 19), P["slate"], width=3, head=8)
+
+    # Physical pool
+    draw.text((1015, 280), "Physical KV block pool", font=pil_font(29, True), fill=P["navy"])
+    pool_positions = {}
+    for i in range(16):
+        col = i % 4
+        row = i // 4
+        x = 1010 + col * 125
+        y = 365 + row * 120
+        used = i in mappings
+        fill = P["teal_light"] if used else P["white"]
+        outline = P["teal"] if used else P["grid"]
+        pool_positions[i] = (x + 52, y + 50)
+        rounded_box(draw, (x, y, x + 104, y + 90), fill=fill, outline=outline, radius=18, width=4 if used else 2, shadow=False)
+        centered_text(draw, (x, y, x + 104, y + 90), f"P{i}", pil_font(24, True), P["teal"] if used else P["gray"])
+
+    for i, p in enumerate(mappings):
+        if i in (0, 1, 3, 5):
+            start = logical[i]
+            mid = (725, 620)
+            end = pool_positions[p]
+            arrow(draw, start, (mid[0] - 80, mid[1] - 35 + i * 45), P["gray"], width=3, head=10)
+            arrow(draw, (825, 719 + i * 52), end, P["teal"], width=4, head=12)
+
+    rounded_box(draw, (130, 1090, 1400, 1205), fill=P["white"], outline=P["blue"], radius=26, width=3)
+    draw.text((175, 1125), "Key effect: no requirement for contiguous KV memory; only the last block can be partially unused.", font=pil_font(29, True), fill=P["navy"])
+    return save(img, "slide_03_pagedattention_mapping.png")
+
+
+def slide04_pipeline():
+    img, draw = base_canvas("vLLM Inference Loop", "Scheduler, block manager and kernels form a tight decode loop")
+    steps = [
+        ("Request\nQueue", "arrival + prompt"),
+        ("Scheduler", "select runnable seqs"),
+        ("Block\nManager", "page allocation"),
+        ("PagedAttention\nKernel", "read KV pages"),
+        ("Token\nOutput", "append + stream"),
+    ]
+    colors = [(P["blue_light"], P["blue"]), (P["teal_light"], P["teal"]), (P["orange_light"], P["orange"]), (P["green_light"], P["green"]), (P["blue_light"], P["blue"])]
+    y = 380
+    centers = []
+    for i, ((title, desc), (fill, line)) in enumerate(zip(steps, colors)):
+        x = 95 + i * 295
+        rounded_box(draw, (x, y, x + 220, y + 170), fill=fill, outline=line, radius=30, width=5)
+        for j, t in enumerate(title.split("\n")):
+            centered_text(draw, (x + 18, y + 33 + j * 31, x + 202, y + 72 + j * 31), t, pil_font(27, True), P["navy"])
+        centered_text(draw, (x + 18, y + 120, x + 202, y + 150), desc, pil_font(19), P["slate"])
+        centers.append((x + 220, y + 85))
+        if i < len(steps) - 1:
+            arrow(draw, (x + 226, y + 85), (x + 286, y + 85), P["slate"], width=7)
+
+    # Feedback loop
+    draw.line((1390, 585, 1390, 840, 190, 840, 190, 590), fill=P["gray"], width=5)
+    arrow(draw, (190, 590), (190, 556), P["gray"], width=5, head=14)
+    draw.text((520, 874), "decode step repeats until EOS / max tokens", font=pil_font(28, True), fill=P["slate"])
+
+    cards = [
+        ("Continuous batching", "keeps GPU occupied as requests finish at different times", P["blue"]),
+        ("Page-level KV reuse", "enables larger live batch under same memory budget", P["teal"]),
+        ("Kernel-aware layout", "attention kernel consumes block table directly", P["green"]),
+    ]
+    for i, (title, body, color) in enumerate(cards):
+        x = 130 + i * 470
+        rounded_box(draw, (x, 1000, x + 380, 1175), fill=P["white"], outline=color, radius=26, width=4)
+        draw.text((x + 28, 1030), title, font=pil_font(27, True), fill=color)
+        draw_wrapped(draw, (x + 30, 1083), body, pil_font(21), P["slate"], 315, 4)
+    return save(img, "slide_04_inference_loop.png")
+
+
+def chart_axes(draw, box, ymax, y_ticks, xlabel="", ylabel=""):
+    x0, y0, x1, y1 = box
+    draw.line((x0, y1, x1, y1), fill=P["gray"], width=3)
+    draw.line((x0, y0, x0, y1), fill=P["gray"], width=3)
+    for tick in y_ticks:
+        y = y1 - int((y1 - y0) * tick / ymax)
+        draw.line((x0, y, x1, y), fill=P["grid"], width=2)
+        draw.text((x0 - 75, y - 15), str(tick), font=pil_font(20), fill=P["slate"])
+    if xlabel:
+        centered_text(draw, (x0, y1 + 80, x1, y1 + 120), xlabel, pil_font(23), P["slate"])
+    if ylabel:
+        draw.text((x0 - 70, y0 - 55), ylabel, font=pil_font(23), fill=P["slate"])
+
+
+def slide05_throughput():
+    img, draw = base_canvas("Throughput Gain", "Illustrative req/min values scaled to official ratios")
+    box = (195, 290, 1245, 1030)
+    chart_axes(draw, box, ymax=280, y_ticks=[0, 70, 140, 210, 280], xlabel="Models", ylabel="req/min")
+    data = {
+        "Llama-7B": [10, 100, 260],
+        "OPT-13B": [8, 78, 205],
+    }
+    systems = [("HF", P["gray"]), ("FT", P["orange"]), ("vLLM", P["blue"])]
+    x0, y0, x1, y1 = box
+    group_w = 440
+    bar_w = 72
+    for g, (model, values) in enumerate(data.items()):
+        base_x = x0 + 175 + g * group_w
+        for i, (system, color) in enumerate(systems):
+            value = values[i]
+            h = int((y1 - y0) * value / 280)
+            x = base_x + i * 95
+            draw.rounded_rectangle((x, y1 - h, x + bar_w, y1), radius=14, fill=color)
+            centered_text(draw, (x - 12, y1 - h - 43, x + bar_w + 12, y1 - h - 4), str(value), pil_font(22, True), color)
+        centered_text(draw, (base_x - 25, y1 + 28, base_x + 280, y1 + 65), model, pil_font(25, True), P["navy"])
+
+    for i, (system, color) in enumerate(systems):
+        x = 1040 + i * 145
+        draw.rounded_rectangle((x, 205, x + 34, 239), radius=8, fill=color)
+        draw.text((x + 45, 205), system, font=pil_font(24, True), fill=P["navy"])
+
+    rounded_box(draw, (1075, 690, 1470, 940), fill=P["white"], outline=P["blue"], radius=28, width=4)
+    draw.text((1115, 730), "Official takeaway", font=pil_font(29, True), fill=P["blue"])
+    draw.text((1120, 790), "vLLM is 22-28x over HF", font=pil_font(25, True), fill=P["navy"])
+    draw.text((1120, 838), "and 2-3x over FT", font=pil_font(25, True), fill=P["navy"])
+    draw.text((1120, 890), "on A100-class serving workloads", font=pil_font(20), fill=P["slate"])
+    return save(img, "slide_05_throughput_gain.png")
+
+
+def slide06_memory_waste():
+    img, draw = base_canvas("Memory Waste Ratio", "PagedAttention reduces wasted KV cache from 60-80% to <4%")
+    # Gauge bars
+    rows = [("Traditional", 70, P["red"], "60-80%"), ("vLLM", 4, P["green"], "<4%")]
+    for i, (name, value, color, label) in enumerate(rows):
+        y = 395 + i * 245
+        draw.text((145, y - 12), name, font=pil_font(33, True), fill=P["navy"])
+        draw.rounded_rectangle((410, y, 1270, y + 86), radius=43, fill=P["grid"])
+        fill_w = max(70, int(860 * value / 80))
+        draw.rounded_rectangle((410, y, 410 + fill_w, y + 86), radius=43, fill=color)
+        draw.text((410 + fill_w + 35, y + 20), label, font=pil_font(35, True), fill=color)
+        for tick in [0, 20, 40, 60, 80]:
+            x = 410 + int(860 * tick / 80)
+            draw.line((x, y + 105, x, y + 128), fill=P["gray"], width=2)
+            centered_text(draw, (x - 45, y + 134, x + 45, y + 165), f"{tick}%", pil_font(18), P["slate"])
+
+    rounded_box(draw, (190, 890, 645, 1125), fill=P["white"], outline=P["red"], radius=28, width=4)
+    draw.text((230, 930), "Before", font=pil_font(32, True), fill=P["red"])
+    draw_wrapped(draw, (232, 990), "over-reservation + fragmentation consumes most of the KV budget", pil_font(23), P["slate"], 350)
+    rounded_box(draw, (865, 890, 1320, 1125), fill=P["white"], outline=P["green"], radius=28, width=4)
+    draw.text((905, 930), "After", font=pil_font(32, True), fill=P["green"])
+    draw_wrapped(draw, (907, 990), "only the last page can be partially unused; allocation is demand-driven", pil_font(23), P["slate"], 350)
+    arrow(draw, (680, 1010), (825, 1010), P["blue"], width=9, head=28)
+    return save(img, "slide_06_memory_waste.png")
+
+
+def slide07_sequence_length():
+    img, draw = base_canvas("Latency vs Sequence Length", "Longer contexts amplify KV cache management differences")
+    box = (195, 285, 1280, 1025)
+    chart_axes(draw, box, ymax=1200, y_ticks=[0, 300, 600, 900, 1200], xlabel="Sequence length (tokens)", ylabel="Latency (ms)")
+    seq = [512, 1024, 2048, 4096, 8192]
+    series = {
+        "HF": ([55, 100, 210, 500, 1100], P["gray"]),
+        "FT": ([35, 62, 130, 310, 720], P["orange"]),
+        "vLLM": ([28, 48, 90, 180, 330], P["blue"]),
+    }
+    x0, y0, x1, y1 = box
+    points_by_name = {}
+    for i, length in enumerate(seq):
+        x = x0 + int((x1 - x0) * i / (len(seq) - 1))
+        draw.line((x, y1, x, y1 + 15), fill=P["gray"], width=2)
+        centered_text(draw, (x - 70, y1 + 28, x + 70, y1 + 58), str(length), pil_font(19), P["slate"])
+    for name, (values, color) in series.items():
+        pts = []
+        for i, value in enumerate(values):
+            x = x0 + int((x1 - x0) * i / (len(seq) - 1))
+            y = y1 - int((y1 - y0) * value / 1200)
+            pts.append((x, y))
+        points_by_name[name] = pts
+        for a, b in zip(pts, pts[1:]):
+            draw.line((*a, *b), fill=color, width=7)
+        for x, y in pts:
+            draw.ellipse((x - 12, y - 12, x + 12, y + 12), fill=color, outline=P["white"], width=4)
+    for idx, (name, (_, color)) in enumerate(series.items()):
+        x = 970 + idx * 150
+        draw.line((x, 215, x + 50, 215), fill=color, width=7)
+        draw.ellipse((x + 18, 203, x + 42, 227), fill=color, outline=P["white"], width=3)
+        draw.text((x + 62, 202), name, font=pil_font(23, True), fill=P["navy"])
+    rounded_box(draw, (955, 785, 1475, 960), fill=P["white"], outline=P["blue"], radius=28, width=4)
+    draw.text((995, 825), "vLLM stays flatter", font=pil_font(31, True), fill=P["blue"])
+    draw_wrapped(draw, (997, 880), "Advantage becomes more visible when sequence length and KV cache footprint grow.", pil_font(23), P["slate"], 420)
+    return save(img, "slide_07_sequence_latency.png")
+
+
+def slide08_value():
+    img, draw = base_canvas("Serving Economics", "PagedAttention shifts the bottleneck from memory waste to scheduling policy")
+    center = (800, 625)
+    # Triad
+    items = [
+        ("High\nThroughput", "22-28x vs HF", (430, 360), P["blue"], P["blue_light"]),
+        ("Low\nLatency", "flatter long-context curve", (965, 360), P["green"], P["green_light"]),
+        ("Memory\nEfficient", "KV waste <4%", (700, 840), P["orange"], P["orange_light"]),
+    ]
+    for title, subtitle, (x, y), color, fill in items:
+        draw.line((center[0], center[1], x + 120, y + 82), fill=P["grid"], width=9)
+    draw.ellipse((center[0] - 105, center[1] - 105, center[0] + 105, center[1] + 105), fill=P["navy"])
+    centered_text(draw, (center[0] - 90, center[1] - 25, center[0] + 90, center[1] + 25), "vLLM", pil_font(42, True), P["white"])
+    for title, subtitle, (x, y), color, fill in items:
+        rounded_box(draw, (x, y, x + 270, y + 170), fill=fill, outline=color, radius=32, width=5)
+        lines = title.split("\n")
+        for i, line in enumerate(lines):
+            centered_text(draw, (x + 20, y + 30 + i * 34, x + 250, y + 66 + i * 34), line, pil_font(30, True), P["navy"])
+        centered_text(draw, (x + 18, y + 120, x + 252, y + 150), subtitle, pil_font(21), P["slate"])
+
+    # Mini comparison matrix
+    rounded_box(draw, (185, 1040, 1415, 1195), fill=P["white"], outline=P["grid"], radius=26, width=3)
+    headers = ["Metric", "Traditional stack", "vLLM"]
+    xs = [230, 600, 1080]
+    for i, h in enumerate(headers):
+        draw.text((xs[i], 1070), h, font=pil_font(25, True), fill=P["navy"])
+    rows = [("Memory waste", "60-80%", "<4%"), ("Concurrency", "fragmentation-limited", "page-limited"), ("Cost/request", "higher", "lower")]
+    for r, row in enumerate(rows):
+        y = 1115 + r * 30
+        draw.text((xs[0], y), row[0], font=pil_font(19), fill=P["slate"])
+        draw.text((xs[1], y), row[1], font=pil_font(19), fill=P["red"] if r == 0 else P["slate"])
+        draw.text((xs[2], y), row[2], font=pil_font(19, True), fill=P["green"] if r == 0 else P["blue"])
+    return save(img, "slide_08_value_summary.png")
+
+
+def generate_assets():
+    ASSET_DIR.mkdir(parents=True, exist_ok=True)
+    return [
+        slide01_cover(),
+        slide02_memory_bottleneck(),
+        slide03_pagedattention(),
+        slide04_pipeline(),
+        slide05_throughput(),
+        slide06_memory_waste(),
+        slide07_sequence_length(),
+        slide08_value(),
+    ]
+
+
+def set_run(run, size=16, bold=False, color=NAVY):
+    run.font.name = FONT_CN
     run.font.size = Pt(size)
     run.font.bold = bold
     run.font.color.rgb = color
 
 
-def add_text(slide, text, x, y, w, h, size=16, bold=False, color=NAVY,
-             align=PP_ALIGN.LEFT, line_spacing=1.0):
+def add_text(slide, text, x, y, w, h, size=16, bold=False, color=NAVY, align=PP_ALIGN.LEFT):
     box = slide.shapes.add_textbox(emu(x), emu(y), emu(w), emu(h))
     tf = box.text_frame
     tf.clear()
@@ -54,469 +483,186 @@ def add_text(slide, text, x, y, w, h, size=16, bold=False, color=NAVY,
     tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
     p = tf.paragraphs[0]
     p.alignment = align
-    p.line_spacing = line_spacing
     run = p.add_run()
     run.text = text
-    set_font(run, size=size, bold=bold, color=color)
+    set_run(run, size=size, bold=bold, color=color)
     return box
 
 
-def add_bullets(slide, bullets, x, y, w, h, size=15, color=NAVY):
+def add_pill(slide, text, x, y, w, color=BLUE):
+    shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, emu(x), emu(y), emu(w), emu(0.32))
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = color
+    shape.line.fill.background()
+    tf = shape.text_frame
+    tf.clear()
+    tf.margin_left = emu(0.08)
+    tf.margin_right = emu(0.08)
+    p = tf.paragraphs[0]
+    p.alignment = PP_ALIGN.CENTER
+    run = p.add_run()
+    run.text = text
+    set_run(run, size=10.5, bold=True, color=WHITE)
+
+
+def add_bullets(slide, bullets, x, y, w, h, size=13.3, color=NAVY):
     box = slide.shapes.add_textbox(emu(x), emu(y), emu(w), emu(h))
     tf = box.text_frame
     tf.clear()
     tf.word_wrap = True
-    for idx, item in enumerate(bullets):
-        p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
+    for i, item in enumerate(bullets):
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.text = ""
         p.level = 0
-        p.margin_left = emu(0.16)
-        p.space_after = Pt(6)
-        p.alignment = PP_ALIGN.LEFT
+        p.space_after = Pt(7)
         run = p.add_run()
         run.text = f"• {item}"
-        set_font(run, size=size, bold=False, color=color)
+        set_run(run, size=size, color=color)
     return box
 
 
-def add_footer(slide, page):
-    add_text(
-        slide,
-        f"{page}/8  |  Reference: Kwon et al., Efficient Memory Management for LLM Serving with PagedAttention, SOSP 2023",
-        0.55,
-        7.12,
-        12.25,
-        0.22,
-        size=8.5,
-        color=GRAY_500,
-    )
+def add_right_panel(slide, page, title, subtitle, takeaway, bullets, note):
+    # right background panel
+    panel = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, emu(7.28), emu(0.72), emu(5.42), emu(6.02))
+    panel.fill.solid()
+    panel.fill.fore_color.rgb = RGBColor(248, 250, 252)
+    panel.line.color.rgb = GRAY_300
+    panel.line.width = Pt(1)
+
+    add_pill(slide, f"Slide {page:02d} · vLLM / SOSP 2023", 7.55, 0.94, 2.15, BLUE)
+    add_text(slide, title, 7.55, 1.32, 4.75, 0.56, size=22, bold=True, color=NAVY)
+    add_text(slide, subtitle, 7.57, 1.92, 4.65, 0.42, size=11.5, color=GRAY_700)
+    add_text(slide, "核心结论", 7.58, 2.52, 1.0, 0.22, size=11.5, bold=True, color=BLUE_DARK)
+    add_text(slide, takeaway, 7.58, 2.82, 4.65, 0.80, size=15, bold=True, color=NAVY)
+    add_text(slide, "讲解要点", 7.58, 3.86, 1.0, 0.22, size=11.5, bold=True, color=BLUE_DARK)
+    add_bullets(slide, bullets, 7.58, 4.16, 4.65, 1.42, size=12.2, color=NAVY)
+    add_text(slide, note, 7.58, 5.92, 4.65, 0.52, size=9.6, color=GRAY_500)
+    add_text(slide, f"{page}/8", 12.02, 6.95, 0.45, 0.18, size=8.8, color=GRAY_500, align=PP_ALIGN.RIGHT)
 
 
-def add_slide_title(slide, title, kicker, page):
-    add_text(slide, kicker, 0.62, 0.30, 3.2, 0.28, size=10.5, bold=True, color=BLUE)
-    add_text(slide, title, 0.60, 0.62, 9.8, 0.48, size=25, bold=True, color=NAVY)
-    line = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, emu(0.62), emu(1.14), emu(1.0), emu(0.045))
-    line.fill.solid()
-    line.fill.fore_color.rgb = BLUE
-    line.line.fill.background()
-    add_footer(slide, page)
+def add_visual(slide, image_path: Path):
+    # Left-side image embedded as a high-resolution PNG.
+    pic = slide.shapes.add_picture(str(image_path), emu(0.42), emu(0.72), width=emu(6.58), height=emu(6.02))
+    border = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, emu(0.42), emu(0.72), emu(6.58), emu(6.02))
+    border.fill.background()
+    border.line.color.rgb = GRAY_300
+    border.line.width = Pt(0.9)
+    # Keep border behind the picture unsupported by python-pptx; transparent fill makes it a subtle outline overlay.
+    return pic
 
 
-def add_rect(slide, x, y, w, h, text="", fill=WHITE, line=GRAY_300, radius=True,
-             font_size=14, font_color=NAVY, bold=False, align=PP_ALIGN.CENTER):
-    shape_type = MSO_SHAPE.ROUNDED_RECTANGLE if radius else MSO_SHAPE.RECTANGLE
-    shape = slide.shapes.add_shape(shape_type, emu(x), emu(y), emu(w), emu(h))
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = fill
-    shape.line.color.rgb = line
-    shape.line.width = Pt(1)
-    if text:
-        tf = shape.text_frame
-        tf.clear()
-        tf.word_wrap = True
-        tf.margin_left = emu(0.08)
-        tf.margin_right = emu(0.08)
-        tf.margin_top = emu(0.04)
-        tf.margin_bottom = emu(0.04)
-        p = tf.paragraphs[0]
-        p.alignment = align
-        run = p.add_run()
-        run.text = text
-        set_font(run, size=font_size, bold=bold, color=font_color)
-    return shape
-
-
-def add_line(slide, x1, y1, x2, y2, color=GRAY_500, width=1.5):
-    line = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, emu(x1), emu(y1), emu(x2), emu(y2))
-    line.line.color.rgb = color
-    line.line.width = Pt(width)
-    return line
-
-
-def add_axis_label(slide, text, x, y, w, h, size=9, color=GRAY_700, align=PP_ALIGN.CENTER):
-    return add_text(slide, text, x, y, w, h, size=size, color=color, align=align)
-
-
-def draw_legend(slide, items, x, y, size=9.5):
-    offset = 0
-    for label, color in items:
-        add_rect(slide, x + offset, y + 0.04, 0.12, 0.12, fill=color, line=color, radius=False)
-        add_text(slide, label, x + offset + 0.16, y, 1.45, 0.22, size=size, color=GRAY_700)
-        offset += 1.55
-
-
-def draw_stacked_memory_chart(slide, x, y, w, h):
-    labels = ["传统连续分配", "vLLM / PagedAttention"]
-    stacks = [
-        [("有效 KV Cache", 25, BLUE), ("Internal fragmentation", 25, ORANGE),
-         ("External fragmentation", 20, RED), ("Reservation", 30, GRAY_500)],
-        [("有效 KV Cache", 96, TEAL), ("Internal fragmentation", 2, ORANGE),
-         ("External fragmentation", 1, RED), ("Reservation", 1, GRAY_500)],
-    ]
-
-    add_line(slide, x + 0.55, y + h - 0.42, x + w - 0.15, y + h - 0.42, color=GRAY_300, width=1)
-    add_line(slide, x + 0.55, y + 0.20, x + 0.55, y + h - 0.42, color=GRAY_300, width=1)
-    for pct in [0, 25, 50, 75, 100]:
-        yy = y + h - 0.42 - pct / 100 * (h - 0.72)
-        add_line(slide, x + 0.50, yy, x + w - 0.15, yy, color=GRAY_200, width=0.6)
-        add_axis_label(slide, f"{pct}%", x + 0.02, yy - 0.08, 0.42, 0.18, size=8, align=PP_ALIGN.RIGHT)
-
-    bar_w = 1.15
-    base_y = y + h - 0.42
-    chart_h = h - 0.72
-    for i, stack in enumerate(stacks):
-        bx = x + 1.45 + i * 2.25
-        current_y = base_y
-        for name, pct, color in stack:
-            seg_h = pct / 100 * chart_h
-            current_y -= seg_h
-            add_rect(slide, bx, current_y, bar_w, seg_h, fill=color, line=WHITE, radius=False)
-            if pct >= 12:
-                add_axis_label(slide, f"{pct}%", bx, current_y + seg_h / 2 - 0.08, bar_w, 0.18,
-                               size=9, color=WHITE)
-        add_axis_label(slide, labels[i], bx - 0.25, y + h - 0.22, bar_w + 0.5, 0.22, size=10, color=NAVY)
-
-    draw_legend(slide, [(name, color) for name, _, color in stacks[0]], x + 5.0, y + 0.35, size=9)
-    add_text(slide, "论文结论：传统 KV Cache 管理因碎片化与预留策略浪费 60%-80%；vLLM 仅末块可能浪费，实测 <4%。",
-             x + 5.0, y + 1.25, 3.9, 0.76, size=13, color=NAVY)
-
-
-def draw_grouped_throughput_chart(slide, x, y, w, h):
-    models = ["Llama-7B", "OPT-13B"]
-    systems = ["HF", "FT", "vLLM"]
-    colors = [GRAY_500, ORANGE, BLUE]
-    data = {
-        "Llama-7B": [10, 100, 260],
-        "OPT-13B": [8, 70, 190],
-    }
-    ymax = 280
-    left = x + 0.72
-    bottom = y + h - 0.52
-    chart_w = w - 1.05
-    chart_h = h - 0.92
-    add_line(slide, left, bottom, left + chart_w, bottom, color=GRAY_300, width=1)
-    add_line(slide, left, y + 0.20, left, bottom, color=GRAY_300, width=1)
-    for val in [0, 70, 140, 210, 280]:
-        yy = bottom - val / ymax * chart_h
-        add_line(slide, left, yy, left + chart_w, yy, color=GRAY_200, width=0.6)
-        add_axis_label(slide, str(val), x + 0.18, yy - 0.08, 0.42, 0.18, size=8, align=PP_ALIGN.RIGHT)
-
-    group_gap = chart_w / len(models)
-    bar_w = 0.28
-    for i, model in enumerate(models):
-        gx = left + i * group_gap + 0.52
-        values = data[model]
-        for j, value in enumerate(values):
-            bh = value / ymax * chart_h
-            bx = gx + j * (bar_w + 0.08)
-            by = bottom - bh
-            add_rect(slide, bx, by, bar_w, bh, fill=colors[j], line=WHITE, radius=False)
-            add_axis_label(slide, str(value), bx - 0.04, by - 0.20, bar_w + 0.08, 0.18, size=8, color=GRAY_700)
-        add_axis_label(slide, model, gx - 0.18, bottom + 0.12, 1.05, 0.2, size=9.5, color=NAVY)
-
-    draw_legend(slide, list(zip(systems, colors)), x + w - 4.6, y + 0.05, size=9.5)
-    add_axis_label(slide, "Throughput (req/min, 论文倍率校准示意)", x + 1.2, y + h - 0.05, 4.0, 0.2, size=9, color=GRAY_700)
-    add_text(slide, "vLLM vs HF\nLlama-7B: 26x\nOPT-13B: 23.8x", x + w - 2.35, y + 0.70, 1.55, 0.70,
-             size=12, bold=True, color=BLUE, align=PP_ALIGN.CENTER)
-    add_text(slide, "vLLM vs FT\n2.6x / 2.7x", x + w - 2.15, y + 1.50, 1.15, 0.45,
-             size=12, bold=True, color=ORANGE, align=PP_ALIGN.CENTER)
-
-
-def draw_waste_bar_chart(slide, x, y, w, h):
-    entries = [
-        ("传统框架\nHF / FT 风格连续管理", 70, RED, "60%-80%"),
-        ("vLLM\nPagedAttention", 4, GREEN, "<4%"),
-    ]
-    max_value = 80
-    label_w = 2.2
-    bar_x = x + label_w + 0.18
-    bar_w = w - label_w - 0.55
-    for idx, (label, value, color, callout) in enumerate(entries):
-        yy = y + 0.55 + idx * 1.25
-        add_text(slide, label, x, yy - 0.05, label_w, 0.45, size=12, bold=True, color=NAVY, align=PP_ALIGN.RIGHT)
-        add_rect(slide, bar_x, yy, bar_w, 0.34, fill=GRAY_100, line=GRAY_200, radius=True)
-        fill_w = max(0.08, value / max_value * bar_w)
-        add_rect(slide, bar_x, yy, fill_w, 0.34, fill=color, line=color, radius=True)
-        add_text(slide, callout, bar_x + fill_w + 0.12, yy + 0.02, 0.95, 0.22, size=12, bold=True, color=color)
-    add_line(slide, bar_x, y + h - 0.48, bar_x + bar_w, y + h - 0.48, color=GRAY_300, width=1)
-    for pct in [0, 20, 40, 60, 80]:
-        xx = bar_x + pct / max_value * bar_w
-        add_line(slide, xx, y + h - 0.55, xx, y + h - 0.42, color=GRAY_300, width=0.8)
-        add_axis_label(slide, f"{pct}%", xx - 0.18, y + h - 0.36, 0.36, 0.16, size=8)
-    add_text(slide, "关键原因：PagedAttention 以固定大小 block 按需分配 KV Cache，避免为未知输出长度做大块连续预留。",
-             x + 0.12, y + 3.00, w - 0.24, 0.50, size=13, color=NAVY)
-
-
-def draw_line_chart(slide, x, y, w, h):
-    seq = [512, 1024, 2048, 4096, 8192]
-    series = {
-        "HF": ([55, 100, 210, 500, 1100], GRAY_500),
-        "FT": ([35, 62, 130, 310, 720], ORANGE),
-        "vLLM": ([28, 48, 90, 180, 330], BLUE),
-    }
-    ymax = 1200
-    left = x + 0.75
-    top = y + 0.18
-    bottom = y + h - 0.58
-    right = x + w - 0.25
-    chart_h = bottom - top
-    chart_w = right - left
-    add_line(slide, left, bottom, right, bottom, color=GRAY_300, width=1)
-    add_line(slide, left, top, left, bottom, color=GRAY_300, width=1)
-    for val in [0, 300, 600, 900, 1200]:
-        yy = bottom - val / ymax * chart_h
-        add_line(slide, left, yy, right, yy, color=GRAY_200, width=0.6)
-        add_axis_label(slide, str(val), x + 0.20, yy - 0.08, 0.42, 0.18, size=8, align=PP_ALIGN.RIGHT)
-    for i, length in enumerate(seq):
-        xx = left + i / (len(seq) - 1) * chart_w
-        add_line(slide, xx, bottom, xx, bottom + 0.07, color=GRAY_300, width=0.8)
-        add_axis_label(slide, str(length), xx - 0.25, bottom + 0.13, 0.50, 0.17, size=8)
-
-    for name, (values, color) in series.items():
-        points = []
-        for i, value in enumerate(values):
-            xx = left + i / (len(seq) - 1) * chart_w
-            yy = bottom - value / ymax * chart_h
-            points.append((xx, yy))
-            marker = slide.shapes.add_shape(MSO_SHAPE.OVAL, emu(xx - 0.045), emu(yy - 0.045), emu(0.09), emu(0.09))
-            marker.fill.solid()
-            marker.fill.fore_color.rgb = color
-            marker.line.color.rgb = WHITE
-        for (x1, y1), (x2, y2) in zip(points, points[1:]):
-            add_line(slide, x1, y1, x2, y2, color=color, width=2.0)
-
-    draw_legend(slide, [(name, color) for name, (_, color) in series.items()], x + w - 4.4, y + 0.05, size=9)
-    add_axis_label(slide, "Sequence Length (tokens)", x + 2.6, y + h - 0.04, 2.2, 0.18, size=8.5)
-    add_axis_label(slide, "Latency (ms, 趋势示意)", x + 0.02, y + 0.05, 1.1, 0.18, size=8.5)
-
-
-def add_comparison_table(slide, x, y, w, h):
-    rows = [
-        ("维度", "传统服务栈", "vLLM / PagedAttention"),
-        ("吞吐量", "HF 基线；FT 提升有限", "HF 的 22-28x；FT 的 2-3x"),
-        ("KV Cache 内存", "连续预留，浪费 60%-80%", "块式按需分配，浪费 <4%"),
-        ("长序列表现", "Batch Size 受内存碎片限制", "更平缓的时延增长曲线"),
-        ("应用价值", "高并发成本高、GPU 利用率低", "更高 GPU 利用率与更低单位请求成本"),
-    ]
-    table_shape = slide.shapes.add_table(len(rows), 3, emu(x), emu(y), emu(w), emu(h))
-    table = table_shape.table
-    table.columns[0].width = emu(1.35)
-    table.columns[1].width = emu(3.05)
-    table.columns[2].width = emu(3.60)
-    for r_idx, row in enumerate(rows):
-        for c_idx, value in enumerate(row):
-            cell = table.cell(r_idx, c_idx)
-            cell.text = value
-            cell.margin_left = emu(0.06)
-            cell.margin_right = emu(0.06)
-            cell.margin_top = emu(0.03)
-            cell.margin_bottom = emu(0.03)
-            fill = BLUE if r_idx == 0 else (BLUE_LIGHT if c_idx == 2 else WHITE)
-            cell.fill.solid()
-            cell.fill.fore_color.rgb = fill
-            cell.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER if r_idx == 0 else PP_ALIGN.LEFT
-            for paragraph in cell.text_frame.paragraphs:
-                for run in paragraph.runs:
-                    set_font(run, size=10.2 if r_idx else 10.5, bold=(r_idx == 0), color=WHITE if r_idx == 0 else NAVY)
-
-
-def build_slide_1(prs):
+def make_slide(prs, image_path, page, title, subtitle, takeaway, bullets, note):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    add_text(slide, "vLLM 推理流程及其性能增益可视化分析", 0.68, 0.72, 9.8, 0.65,
-             size=28, bold=True, color=NAVY)
-    add_text(slide, "基于 PagedAttention 的高吞吐量 LLM 服务系统", 0.72, 1.48, 8.2, 0.36,
-             size=17, color=BLUE_DARK)
-    add_text(slide, "Reference: Kwon et al., SOSP 2023", 0.76, 6.84, 4.8, 0.25,
-             size=10, color=GRAY_500)
-
-    boxes = [
-        ("用户请求\nPrompt + sampling", 0.95, BLUE_LIGHT, BLUE),
-        ("vLLM Engine\nScheduler", 3.35, TEAL_LIGHT, TEAL),
-        ("PagedAttention\nKV Cache paging", 5.75, ORANGE_LIGHT, ORANGE),
-        ("A100 GPU\nHigh utilization", 8.15, GREEN_LIGHT, GREEN),
-    ]
-    for text, x, fill, line in boxes:
-        add_rect(slide, x, 3.20, 1.75, 0.82, text, fill=fill, line=line, font_size=13, bold=True)
-    for x in [2.74, 5.14, 7.54]:
-        add_line(slide, x, 3.61, x + 0.45, 3.61, color=GRAY_700, width=2)
-        tri = slide.shapes.add_shape(MSO_SHAPE.RIGHT_TRIANGLE, emu(x + 0.38), emu(3.52), emu(0.16), emu(0.18))
-        tri.fill.solid()
-        tri.fill.fore_color.rgb = GRAY_700
-        tri.line.fill.background()
-    add_rect(slide, 9.98, 3.08, 2.18, 1.05, "输出 Tokens\n22-28x vs HF\n2-3x vs FT", fill=BLUE, line=BLUE,
-             font_size=13, font_color=WHITE, bold=True)
-    add_text(slide, "6 分钟学术演示 · 8 页 · 数据基于官方论文/博客披露结论", 0.78, 2.05, 7.3, 0.25,
-             size=10.5, color=GRAY_700)
-    add_footer(slide, 1)
-
-
-def build_slide_2(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    add_slide_title(slide, "背景：LLM 推理中的内存瓶颈", "KV Cache limits batch size", 2)
-    add_bullets(
-        slide,
-        [
-            "自回归解码中，每生成一个 token 都会追加 Key/Value 张量。",
-            "KV Cache 随序列长度与并发请求线性增长，迅速占满 GPU memory。",
-            "传统连续分配需要预估最大输出长度，碎片化与预留空间压缩可用 Batch Size。",
-        ],
-        0.72,
-        1.45,
-        4.0,
-        1.25,
-        size=13,
-    )
-    draw_stacked_memory_chart(slide, 0.75, 2.72, 11.55, 3.45)
-
-
-def build_slide_3(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    add_slide_title(slide, "核心机制：PagedAttention 原理", "Logical blocks -> Physical blocks", 3)
-    add_text(slide, "思想类比操作系统虚拟内存：请求看到连续 logical blocks；GPU 中实际 KV Cache blocks 可非连续存放。",
-             0.74, 1.32, 9.9, 0.32, size=13, color=GRAY_700)
-
-    add_text(slide, "Sequence A Logical Blocks", 0.82, 1.96, 2.8, 0.22, size=11, bold=True, color=NAVY)
-    for idx in range(4):
-        add_rect(slide, 0.90 + idx * 0.78, 2.28, 0.55, 0.42, f"L{idx}", fill=BLUE_LIGHT, line=BLUE, font_size=12, bold=True)
-
-    add_text(slide, "Block Table / Page Table", 4.42, 1.82, 2.7, 0.22, size=11, bold=True, color=NAVY)
-    mappings = [("L0", "P7"), ("L1", "P2"), ("L2", "P9"), ("L3", "P4")]
-    for i, (logical, physical) in enumerate(mappings):
-        add_rect(slide, 4.45, 2.18 + i * 0.46, 0.68, 0.32, logical, fill=WHITE, line=GRAY_300, font_size=10)
-        add_rect(slide, 5.13, 2.18 + i * 0.46, 0.82, 0.32, physical, fill=TEAL_LIGHT, line=TEAL, font_size=10, bold=True)
-
-    add_text(slide, "Physical KV Block Pool on GPU", 7.72, 1.96, 3.2, 0.22, size=11, bold=True, color=NAVY)
-    physical = [
-        ("P0", GRAY_100), ("P1", GRAY_100), ("P2", TEAL_LIGHT), ("P3", GRAY_100),
-        ("P4", TEAL_LIGHT), ("P5", GRAY_100), ("P6", GRAY_100), ("P7", TEAL_LIGHT),
-        ("P8", GRAY_100), ("P9", TEAL_LIGHT), ("P10", GRAY_100), ("P11", GRAY_100),
-    ]
-    for i, (label, fill) in enumerate(physical):
-        px = 7.78 + (i % 4) * 0.72
-        py = 2.28 + (i // 4) * 0.56
-        add_rect(slide, px, py, 0.52, 0.38, label, fill=fill, line=TEAL if fill == TEAL_LIGHT else GRAY_300, font_size=9.5)
-
-    for x1, y1, x2, y2 in [(3.98, 2.49, 4.35, 2.34), (3.98, 2.49, 4.35, 2.80), (3.98, 2.49, 4.35, 3.26),
-                           (6.05, 2.34, 7.62, 3.26), (6.05, 2.80, 7.62, 2.70), (6.05, 3.26, 7.62, 3.82)]:
-        add_line(slide, x1, y1, x2, y2, color=GRAY_500, width=1.2)
-
-    add_rect(slide, 1.05, 5.05, 3.0, 0.55, "按需分配\n只为已生成 tokens 申请 block", fill=BLUE_LIGHT, line=BLUE, font_size=12, bold=True)
-    add_rect(slide, 4.85, 5.05, 3.0, 0.55, "非连续存储\nPage table 维护映射", fill=TEAL_LIGHT, line=TEAL, font_size=12, bold=True)
-    add_rect(slide, 8.65, 5.05, 3.0, 0.55, "末块浪费\n实测 memory waste <4%", fill=GREEN_LIGHT, line=GREEN, font_size=12, bold=True)
-
-
-def build_slide_4(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    add_slide_title(slide, "vLLM 推理全流程解析", "Scheduler + Block Manager + Kernels", 4)
-    add_text(slide, "连续 batching 与 PagedAttention 共同作用：调度层扩大有效 Batch，内存层保持 KV Cache 紧凑。",
-             0.74, 1.32, 9.4, 0.30, size=13, color=GRAY_700)
-
-    steps = [
-        ("1. Request Queue\n输入请求进入等待队列", BLUE_LIGHT, BLUE),
-        ("2. Scheduler\n选择可运行序列", TEAL_LIGHT, TEAL),
-        ("3. Block Manager\n申请/释放 physical blocks", ORANGE_LIGHT, ORANGE),
-        ("4. PagedAttention Kernel\n按 block table 读取 KV", GREEN_LIGHT, GREEN),
-        ("5. Token Output\n生成 token 并回写状态", BLUE_LIGHT, BLUE),
-    ]
-    x0 = 0.72
-    for i, (text, fill, line) in enumerate(steps):
-        x = x0 + i * 2.38
-        add_rect(slide, x, 2.48, 1.75, 0.78, text, fill=fill, line=line, font_size=10.8, bold=True)
-        if i < len(steps) - 1:
-            add_line(slide, x + 1.75, 2.87, x + 2.26, 2.87, color=GRAY_700, width=1.8)
-            tri = slide.shapes.add_shape(MSO_SHAPE.RIGHT_TRIANGLE, emu(x + 2.18), emu(2.79), emu(0.14), emu(0.16))
-            tri.fill.solid()
-            tri.fill.fore_color.rgb = GRAY_700
-            tri.line.fill.background()
-
-    add_line(slide, 10.45, 3.38, 10.45, 4.40, color=GRAY_500, width=1.2)
-    add_line(slide, 10.45, 4.40, 1.58, 4.40, color=GRAY_500, width=1.2)
-    add_line(slide, 1.58, 4.40, 1.58, 3.37, color=GRAY_500, width=1.2)
-    add_text(slide, "decode loop: 新 token 触发下一轮调度与 block 映射更新", 3.45, 4.48, 4.8, 0.26,
-             size=11, color=GRAY_700, align=PP_ALIGN.CENTER)
-
-    add_rect(slide, 1.02, 5.18, 3.05, 0.62, "吞吐来源 1\nContinuous batching 提高 GPU occupancy", fill=WHITE, line=GRAY_300, font_size=12)
-    add_rect(slide, 4.95, 5.18, 3.05, 0.62, "吞吐来源 2\nPaged KV Cache 提高可容纳并发", fill=WHITE, line=GRAY_300, font_size=12)
-    add_rect(slide, 8.88, 5.18, 3.05, 0.62, "吞吐来源 3\nKernel 直接消费 block table", fill=WHITE, line=GRAY_300, font_size=12)
-
-
-def build_slide_5(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    add_slide_title(slide, "性能分析：吞吐量增益（官方核心结论）", "Throughput vs HF / FT", 5)
-    add_text(slide, "柱状图采用官方披露倍率校准的 req/min 示意：vLLM 相比 HF 约 22-28x，相比 FT 约 2-3x。",
-             0.74, 1.32, 9.95, 0.30, size=13, color=GRAY_700)
-    draw_grouped_throughput_chart(slide, 0.82, 1.86, 10.95, 4.15)
-    add_rect(slide, 9.72, 5.78, 2.18, 0.38, "A100 80GB · Llama/OPT", fill=GRAY_100, line=GRAY_300,
-             font_size=10.5, font_color=GRAY_700, bold=True)
-
-
-def build_slide_6(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    add_slide_title(slide, "性能分析：内存浪费率对比", "Memory waste ratio", 6)
-    add_text(slide, "vLLM 的核心收益不是减少模型权重，而是将动态 KV Cache 管理从连续预留改为分页式按需分配。",
-             0.74, 1.32, 10.2, 0.30, size=13, color=GRAY_700)
-    draw_waste_bar_chart(slide, 1.05, 2.03, 10.55, 3.75)
-    add_rect(slide, 1.35, 5.93, 2.65, 0.42, "结果：更大 Batch Size", fill=GREEN_LIGHT, line=GREEN, font_size=12, bold=True)
-    add_rect(slide, 5.30, 5.93, 2.65, 0.42, "结果：更高 GPU 利用率", fill=BLUE_LIGHT, line=BLUE, font_size=12, bold=True)
-    add_rect(slide, 9.25, 5.93, 2.65, 0.42, "结果：更低服务成本", fill=ORANGE_LIGHT, line=ORANGE, font_size=12, bold=True)
-
-
-def build_slide_7(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    add_slide_title(slide, "性能分析：不同序列长度下的表现", "Long sequence stability", 7)
-    add_text(slide, "论文指出：序列更长、模型更大、解码更复杂时，内存管理优势更明显；下图展示长文本下的时延增长趋势。",
-             0.74, 1.32, 10.4, 0.30, size=13, color=GRAY_700)
-    draw_line_chart(slide, 0.82, 1.86, 10.95, 4.35)
-    add_rect(slide, 9.65, 5.92, 2.25, 0.38, "vLLM 曲线更平缓", fill=BLUE, line=BLUE, font_size=11.5,
-             font_color=WHITE, bold=True)
-
-
-def build_slide_8(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    add_slide_title(slide, "结论与应用价值", "Why vLLM changes serving economics", 8)
-    add_text(slide, "PagedAttention 将 LLM Serving 的瓶颈从“KV Cache 内存不可控”转化为可调度、可复用、可分页的系统问题。",
-             0.74, 1.32, 10.3, 0.30, size=13, color=GRAY_700)
-
-    cards = [
-        ("High Throughput", "22-28x vs HF\n2-3x vs FT", BLUE_LIGHT, BLUE),
-        ("Low Latency", "长序列下时延增长更平缓", GREEN_LIGHT, GREEN),
-        ("Memory Efficient", "KV Cache waste <4%", ORANGE_LIGHT, ORANGE),
-    ]
-    for i, (title, body, fill, line) in enumerate(cards):
-        x = 1.00 + i * 3.95
-        add_rect(slide, x, 2.02, 2.95, 1.08, "", fill=fill, line=line)
-        icon = slide.shapes.add_shape(MSO_SHAPE.OVAL, emu(x + 0.18), emu(2.26), emu(0.44), emu(0.44))
-        icon.fill.solid()
-        icon.fill.fore_color.rgb = line
-        icon.line.fill.background()
-        add_text(slide, title, x + 0.74, 2.18, 1.95, 0.22, size=12.5, bold=True, color=NAVY)
-        add_text(slide, body, x + 0.74, 2.48, 1.95, 0.35, size=10.5, color=GRAY_700)
-
-    add_comparison_table(slide, 0.92, 3.58, 11.25, 2.45)
-    add_text(slide, "一句话总结：vLLM 通过 PagedAttention 把“GPU 内存碎片问题”转化为“分页映射问题”，从而提升吞吐并降低单位推理成本。",
-             0.92, 6.23, 10.85, 0.30, size=12.5, bold=True, color=BLUE_DARK)
+    add_visual(slide, image_path)
+    add_right_panel(slide, page, title, subtitle, takeaway, bullets, note)
+    return slide
 
 
 def main():
+    assets = generate_assets()
     prs = Presentation()
-    prs.slide_width = emu(13.333)
-    prs.slide_height = emu(7.5)
+    prs.slide_width = SLIDE_W
+    prs.slide_height = SLIDE_H
 
-    for builder in [
-        build_slide_1,
-        build_slide_2,
-        build_slide_3,
-        build_slide_4,
-        build_slide_5,
-        build_slide_6,
-        build_slide_7,
-        build_slide_8,
-    ]:
-        builder(prs)
+    slides = [
+        (
+            "vLLM 推理流程及其性能增益可视化分析",
+            "基于 PagedAttention 的高吞吐量 LLM 服务系统",
+            "vLLM 的核心不是改模型结构，而是把 KV Cache 管理做成类似虚拟内存的分页系统。",
+            [
+                "目标场景：多请求并发、变长输入/输出、A100 80GB 服务环境。",
+                "官方结论：吞吐量相对 HF 约 22-28x，相对 FT 约 2-3x。",
+                "演讲主线：内存瓶颈 → PagedAttention → 调度闭环 → 性能收益。",
+            ],
+            "Reference: Kwon et al., SOSP 2023；专业术语保留 English。",
+        ),
+        (
+            "背景：LLM 推理中的内存瓶颈",
+            "KV Cache 随 batch size 与 sequence length 增长，直接压缩可并发请求数。",
+            "传统连续预分配把大量显存锁在碎片和预留空间中，导致 batch size 很早触顶。",
+            [
+                "每个请求生成 token 时都追加 Key/Value 张量，显存占用动态增长。",
+                "传统系统为最坏输出长度预留连续空间，造成 internal/external fragmentation。",
+                "论文披露传统 KV Cache 管理浪费约 60%-80%，是吞吐瓶颈的根因之一。",
+            ],
+            "左图为堆叠占比示意，用于解释 60%-80% waste 与 <4% waste 的差异。",
+        ),
+        (
+            "核心机制：PagedAttention 原理",
+            "逻辑块到物理块的映射，让 KV Cache 不再要求物理连续。",
+            "PagedAttention 将每个序列的 KV Cache 切成固定大小 block，用 block table 连接逻辑顺序与物理位置。",
+            [
+                "Logical blocks 保持模型看到的 token 顺序；physical blocks 可分散在 GPU cache pool。",
+                "新增 token 只在需要时申请 block，释放请求时可立即回收物理块。",
+                "浪费只出现在序列末尾未填满的 block，因此实测内存浪费低于 4%。",
+            ],
+            "该机制借鉴 OS virtual memory / paging，但服务对象是 GPU 上的 KV Cache。",
+        ),
+        (
+            "vLLM 推理全流程解析",
+            "Scheduler、Block Manager 与 PagedAttention kernel 共同构成 decode loop。",
+            "吞吐提升来自系统级闭环：调度层保持 GPU 忙碌，内存层让更多请求能同时留在 batch 中。",
+            [
+                "Scheduler 按可运行状态组织 continuous batching，应对请求长短不一。",
+                "Block Manager 负责 KV block 的分配、回收和 block table 更新。",
+                "PagedAttention kernel 根据映射读取非连续 KV block，避免搬运成连续缓存。",
+            ],
+            "这一页适合用 45 秒讲清楚 vLLM engine 的运行路径。",
+        ),
+        (
+            "性能分析：吞吐量增益",
+            "基于官方倍率校准的 req/min 可视化：vLLM 对 HF/FT 均显著领先。",
+            "vLLM 在 Llama/OPT 等模型上通过更大的有效 batch 获得 20x+ 对 HF、2x+ 对 FT 的吞吐优势。",
+            [
+                "HF 基线缺少面向高并发 serving 的细粒度调度与 KV cache 管理。",
+                "FT 具备优化 kernel，但在动态请求与 KV cache 碎片场景下仍受限。",
+                "vLLM 的优势在长序列、大模型、复杂 decoding 策略下更明显。",
+            ],
+            "柱状图为倍率关系可视化，不把示意 req/min 当作论文逐点原始表格。",
+        ),
+        (
+            "性能分析：内存浪费率对比",
+            "从 60%-80% 到 <4%：显存利用率改善直接转化为可服务并发数。",
+            "PagedAttention 的经济性体现在单位 GPU 能容纳更多 live sequences，降低单位请求显存成本。",
+            [
+                "传统系统的浪费主要来自预留空间和碎片化，而非模型权重本身。",
+                "vLLM 的 block 粒度分配使显存容量更接近真实 token 需求。",
+                "当请求长度高度不均匀时，分页管理比连续分配更稳健。",
+            ],
+            "图中 Traditional 取 70% 作为 60%-80% 区间中位示意；vLLM 标注 <4%。",
+        ),
+        (
+            "性能分析：不同序列长度下的表现",
+            "长上下文会放大 KV Cache 管理差异，vLLM 的时延增长更平缓。",
+            "随着 sequence length 增长，传统系统更快进入内存压力区；vLLM 因分页式 KV 管理保持更稳定的 batch。",
+            [
+                "短序列时计算可能占主导，系统间差异相对收敛。",
+                "长序列时 KV Cache 占用成为主导，碎片/预留浪费会触发排队与 batch 缩小。",
+                "论文总结：长序列、大模型、复杂 decoding 下 vLLM 改善更突出。",
+            ],
+            "折线图为趋势示意，用于解释论文结论而非替代原始实验曲线。",
+        ),
+        (
+            "结论与应用价值",
+            "PagedAttention 改变了 LLM serving 的成本结构：同样 GPU，服务更多请求。",
+            "vLLM 把不可控的动态 KV Cache 显存问题，重构为可调度、可分页、可回收的系统资源管理问题。",
+            [
+                "对平台方：提升 GPU utilization，降低单位请求成本。",
+                "对业务方：在高并发与长文本场景下获得更稳定 SLA。",
+                "对系统设计：LLM 推理优化应同时关注 kernel、scheduler 与 memory manager。",
+            ],
+            "6 分钟收束：vLLM 的价值不是单点优化，而是内存管理与调度的系统化协同。",
+        ),
+    ]
+
+    for idx, (text, asset) in enumerate(zip(slides, assets), start=1):
+        title, subtitle, takeaway, bullets, note = text
+        make_slide(prs, asset, idx, title, subtitle, takeaway, bullets, note)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     prs.save(OUT_FILE)
     print(f"Generated {OUT_FILE} with {len(prs.slides)} slides")
+    print(f"Generated {len(assets)} embedded chart images in {ASSET_DIR}")
 
 
 if __name__ == "__main__":
