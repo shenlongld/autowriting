@@ -54,10 +54,14 @@ plt.rcParams.update(
 sns.set_theme(style="whitegrid")
 
 
-def save_fig(fig: plt.Figure, name: str) -> Path:
+def save_fig(fig: plt.Figure, name: str, tight: bool = True) -> Path:
     ASSET_DIR.mkdir(exist_ok=True)
     path = ASSET_DIR / f"{name}.png"
-    fig.savefig(path, dpi=260, bbox_inches="tight")
+    if tight:
+        fig.savefig(path, dpi=260, bbox_inches="tight")
+    else:
+        fig.subplots_adjust(left=0.025, right=0.985, top=0.89, bottom=0.055)
+        fig.savefig(path, dpi=260)
     plt.close(fig)
     return path
 
@@ -229,145 +233,245 @@ def build_slide_2_figure() -> Path:
 
 
 def build_slide_3_figure() -> Path:
-    fig, ax = plt.subplots(figsize=(10.7, 6.4))
-    ax.set_xlim(0, 12)
-    ax.set_ylim(0, 7)
+    fig, ax = plt.subplots(figsize=(9.55, 7.0))
+    ax.set_xlim(0, 14)
+    ax.set_ylim(0, 8)
     ax.axis("off")
-    figure_title(ax, "Prefill Phase: Tensor Projection and Block Allocation")
+    figure_title(ax, "Prefill Phase: Tensor Projection and Paged Block Allocation")
 
-    ax.text(1.75, 6.2, "Prompt Tensor", ha="center", fontsize=12, weight="bold", color=TEXT)
-    rows, cols = 4, 8
+    ax.text(1.65, 7.05, "1. Prompt tensor", ha="center", fontsize=11.5, weight="bold", color=TEXT)
+    rows, cols = 5, 10
     for i in range(rows):
         for j in range(cols):
             color = [ROYAL, EMERALD, SLATE][(i + j) % 3]
-            add_rect(ax, (0.4 + j * 0.28, 4.7 - i * 0.28), 0.25, 0.25, color, alpha=0.78, lw=0.3)
-    ax.text(1.52, 4.25, "X_prompt: [B, S_prompt, d_model]", ha="center", fontsize=9.5, color=SLATE)
+            add_rect(ax, (0.35 + j * 0.24, 5.92 - i * 0.24), 0.21, 0.21, color, alpha=0.78, lw=0.25)
+    ax.text(1.55, 5.18, "X_prompt: [B=1, S=96, d_model=4096]", ha="center", fontsize=8.4, color=SLATE)
+    for j, token in enumerate(["t0", "t15", "t16", "t31", "...", "t95"]):
+        ax.text(0.45 + j * 0.43, 4.9, token, fontsize=6.8, color=SLATE)
 
-    ax.annotate("", xy=(4.0, 5.0), xytext=(2.9, 5.0), arrowprops=dict(arrowstyle="->", lw=1.6, color=SLATE))
-    add_rect(ax, (4.1, 4.35), 1.55, 1.25, "#EEF2F6", text="Q,K,V\nprojection", fontsize=11, ec=SLATE, text_color=TEXT)
-    ax.text(4.88, 4.08, "W_q, W_k, W_v", ha="center", fontsize=8.8, color=SLATE)
+    add_rect(ax, (3.05, 5.35), 1.4, 1.35, "#EEF2F6", text="Embedding\n+ position", fontsize=9.4, ec=SLATE, text_color=TEXT)
+    ax.annotate("", xy=(3.05, 6.02), xytext=(2.83, 6.02), arrowprops=dict(arrowstyle="->", lw=1.3, color=SLATE))
+    add_rect(ax, (4.85, 5.35), 1.55, 1.35, "#EEF2F6", text="Transformer\nlayers", fontsize=9.4, ec=SLATE, text_color=TEXT)
+    ax.annotate("", xy=(4.85, 6.02), xytext=(4.45, 6.02), arrowprops=dict(arrowstyle="->", lw=1.3, color=SLATE))
+    add_rect(ax, (6.85, 5.35), 1.6, 1.35, "#EEF2F6", text="Q,K,V\nprojection", fontsize=9.4, ec=SLATE, text_color=TEXT)
+    ax.text(7.65, 5.07, "W_q, W_k, W_v", ha="center", fontsize=7.8, color=SLATE)
+    ax.annotate("", xy=(6.85, 6.02), xytext=(6.4, 6.02), arrowprops=dict(arrowstyle="->", lw=1.3, color=SLATE))
 
-    ax.annotate("", xy=(7.1, 5.0), xytext=(5.75, 5.0), arrowprops=dict(arrowstyle="->", lw=1.6, color=SLATE))
-    ax.text(7.9, 6.2, "KV vectors", ha="center", fontsize=12, weight="bold", color=TEXT)
-    for i in range(2):
-        add_rect(ax, (7.0, 5.35 - i * 0.75), 2.0, 0.45, ROYAL if i == 0 else EMERALD, text="K: [L,H_kv,S,d_h]" if i == 0 else "V: [L,H_kv,S,d_h]", fontsize=8.8)
+    ax.text(10.4, 7.05, "2. KV cache tensor", ha="center", fontsize=11.5, weight="bold", color=TEXT)
+    for layer in range(4):
+        x = 9.0 + layer * 0.25
+        y = 5.25 + layer * 0.12
+        add_rect(ax, (x, y), 2.9, 0.72, ROYAL if layer % 2 == 0 else EMERALD, alpha=0.78, lw=0.7)
+    ax.text(10.7, 5.67, "K/V: [n_layers=32, H_kv=32,\nS=96, d_head=128]", ha="center", va="center", fontsize=8.2, color="white", weight="bold")
+    ax.annotate("", xy=(9.0, 5.94), xytext=(8.45, 5.94), arrowprops=dict(arrowstyle="->", lw=1.3, color=SLATE))
 
-    ax.annotate("", xy=(6.4, 3.2), xytext=(7.9, 4.45), arrowprops=dict(arrowstyle="->", lw=1.3, color=SLATE))
-    ax.text(4.1, 3.6, "Fixed-size slicing", fontsize=11.5, weight="bold", color=TEXT)
-    ax.text(4.1, 3.25, "Block Size = 16 tokens", fontsize=9.5, color=SLATE)
-    for b in range(5):
-        x = 3.1 + b * 1.2
-        add_rect(ax, (x, 2.25), 0.95, 0.66, [ROYAL, EMERALD, SLATE][b % 3], text=f"Block {b}\n16 slots", fontsize=8.4)
-        ax.text(x + 0.48, 2.08, f"P{[12, 29, 4, 41, 8][b]}", ha="center", fontsize=8.5, color=SLATE)
+    ax.text(2.9, 4.25, "3. Logical slicing (Block Size = 16 tokens)", fontsize=11.2, weight="bold", color=TEXT)
+    logical_blocks = []
+    phys_ids = [12, 29, 4, 41, 8, 33]
+    for b in range(6):
+        x = 0.62 + b * 1.02
+        logical_blocks.append((x, 3.42))
+        add_rect(ax, (x, 3.42), 0.86, 0.56, [ROYAL, EMERALD, SLATE][b % 3], text=f"L{b}", fontsize=8.8)
+        ax.text(x + 0.43, 3.23, f"{b*16}-{b*16+15}", ha="center", fontsize=7.0, color=SLATE)
+    ax.text(0.65, 3.02, "logical_token_id -> logical_block_id", fontsize=7.8, color=SLATE)
+
+    ax.text(8.0, 4.25, "4. Block table materialized during prefill", fontsize=11.2, weight="bold", color=TEXT)
+    add_rect(ax, (7.1, 2.0), 2.7, 1.95, "white", ec=SLATE, lw=1.1)
+    add_rect(ax, (7.1, 3.55), 2.7, 0.4, SLATE, text="logical id | physical page | base addr", fontsize=7.1)
+    for b, pid in enumerate(phys_ids):
+        y = 3.18 - b * 0.25
+        ax.text(7.28, y, f"L{b}", fontsize=7.2, color=TEXT)
+        ax.text(8.05, y, f"P{pid}", fontsize=7.2, color=TEXT)
+        ax.text(8.82, y, f"0x{0xA000 + pid * 0x100:X}", fontsize=7.2, color=TEXT)
+        if b < 6:
+            ax.plot([logical_blocks[b][0] + 0.43, 7.1], [3.42, y + 0.03], color=[ROYAL, EMERALD, SLATE][b % 3], lw=0.75, alpha=0.7)
+
+    ax.text(12.0, 4.25, "5. GPU KV pool", fontsize=11.2, weight="bold", color=TEXT, ha="center")
+    pool_positions = {}
+    pid_grid = [2, 12, 19, 29, 4, 55, 41, 6, 8, 21, 33, 48]
+    for r in range(3):
+        for c in range(4):
+            idx = r * 4 + c
+            pid = pid_grid[idx]
+            x = 10.4 + c * 0.72
+            y = 3.22 - r * 0.55
+            pool_positions[pid] = (x, y)
+            is_used = pid in phys_ids
+            color = [ROYAL, EMERALD, SLATE][phys_ids.index(pid) % 3] if is_used else "#EEF2F6"
+            label = f"P{pid}" if is_used else "free"
+            add_rect(ax, (x, y), 0.62, 0.42, color, text=label, fontsize=6.8, ec=GRID if not is_used else "white", text_color=TEXT if not is_used else "white")
+    for b, pid in enumerate(phys_ids):
+        if pid in pool_positions:
+            x, y = pool_positions[pid]
+            ax.annotate("", xy=(x, y + 0.22), xytext=(9.8, 3.18 - b * 0.25), arrowprops=dict(arrowstyle="->", lw=0.85, color=[ROYAL, EMERALD, SLATE][b % 3], alpha=0.75))
 
     ax.text(
-        6.0,
-        1.35,
-        "logical_index = floor(token_id / 16)     physical_addr = block_table[logical_index]",
+        7.0,
+        0.95,
+        "logical_block_id = floor(token_id / 16)  |  physical_addr = block_table[logical_block_id].base + slot_id * bytes(KV_token)",
         ha="center",
-        fontsize=10.2,
+        fontsize=8.7,
         color=TEXT,
         bbox=dict(boxstyle="round,pad=0.35", fc=LIGHT_BG, ec=GRID),
     )
-    ax.text(1.35, 1.1, "State: allocate on demand; no full max-length reservation.", fontsize=9.5, color=SLATE)
-    return save_fig(fig, "slide_03_prefill_blocks")
+    ax.text(0.55, 0.52, "Allocator state after prefill: 6 blocks allocated, no max-length reservation, free-list remains reusable.", fontsize=8.4, color=SLATE)
+    return save_fig(fig, "slide_03_prefill_blocks", tight=False)
 
 
 def build_slide_4_figure() -> Path:
-    fig, ax = plt.subplots(figsize=(10.7, 6.4))
+    fig, ax = plt.subplots(figsize=(9.55, 7.0))
     ax.set_xlim(0, 18)
-    ax.set_ylim(0, 7)
+    ax.set_ylim(0, 8)
     ax.axis("off")
-    figure_title(ax, "Decoding Phase: Slot-level Fill Operation")
+    figure_title(ax, "Decoding Phase: Slot-level Fill and Allocator State")
 
-    ax.text(9, 6.15, "Physical Block P42  |  Block Size = 16", ha="center", fontsize=13, weight="bold", color=TEXT)
-    start_x, start_y = 1.0, 4.0
-    slot_w, slot_h = 0.92, 1.05
+    ax.text(2.2, 7.15, "Active request state", ha="center", fontsize=11.5, weight="bold", color=TEXT)
+    add_rect(ax, (0.45, 5.63), 3.55, 1.05, "white", ec=SLATE, lw=1.1)
+    add_rect(ax, (0.45, 6.28), 3.55, 0.4, SLATE, text="req | len | last block | fill", fontsize=7.6)
+    req_rows = [("R_A", "63", "P42", "15/16"), ("R_B", "28", "P17", "12/16")]
+    for i, row in enumerate(req_rows):
+        y = 6.0 - i * 0.32
+        ax.text(0.68, y, row[0], fontsize=7.7, color=TEXT)
+        ax.text(1.35, y, row[1], fontsize=7.7, color=TEXT)
+        ax.text(2.02, y, row[2], fontsize=7.7, color=TEXT)
+        ax.text(2.92, y, row[3], fontsize=7.7, color=TEXT)
+
+    ax.text(7.2, 7.15, "Physical Block P42: 16 slots", ha="center", fontsize=12.3, weight="bold", color=TEXT)
+    start_x, start_y = 4.1, 5.25
+    slot_w, slot_h = 0.62, 0.52
     for i in range(16):
+        row = 0 if i < 8 else 1
+        col = i if i < 8 else i - 8
+        x = start_x + col * slot_w
+        y = start_y - row * 0.62
         color = ROYAL if i < 15 else EMERALD
-        alpha = 0.92 if i < 15 else 0.58
-        add_rect(ax, (start_x + i * slot_w, start_y), slot_w - 0.05, slot_h, color, text=f"{i}", fontsize=9, alpha=alpha)
-        if i < 15:
-            ax.text(start_x + i * slot_w + 0.43, start_y + 1.22, "filled", ha="center", fontsize=6.8, color=SLATE)
-        else:
-            ax.text(start_x + i * slot_w + 0.43, start_y + 1.22, "write", ha="center", fontsize=7.4, color=EMERALD, weight="bold")
+        alpha = 0.93 if i < 15 else 0.6
+        add_rect(ax, (x, y), slot_w - 0.04, slot_h, color, text=str(i), fontsize=7.7, alpha=alpha)
+    ax.text(6.53, 4.26, "slot 15 receives K_t/V_t", fontsize=8.2, color=EMERALD, weight="bold")
 
-    add_rect(ax, (1.0, 2.0), 3.05, 0.8, "#EEF2F6", text="current token x_t", fontsize=11, ec=SLATE, text_color=TEXT)
-    ax.annotate("", xy=(7.2, 2.4), xytext=(4.1, 2.4), arrowprops=dict(arrowstyle="->", lw=1.6, color=SLATE))
-    add_rect(ax, (7.25, 1.75), 2.9, 1.25, EMERALD, text="K_t, V_t\nnew KV pair", fontsize=11)
-    ax.annotate("", xy=(start_x + 15 * slot_w + 0.42, start_y), xytext=(8.7, 3.08), arrowprops=dict(arrowstyle="->", lw=2.0, color=EMERALD))
+    add_rect(ax, (10.15, 5.35), 1.35, 0.82, "#EEF2F6", text="x_t\nnew token", fontsize=8.6, ec=SLATE, text_color=TEXT)
+    ax.annotate("", xy=(12.0, 5.76), xytext=(11.5, 5.76), arrowprops=dict(arrowstyle="->", lw=1.2, color=SLATE))
+    add_rect(ax, (12.0, 5.18), 2.15, 1.16, EMERALD, text="K_t, V_t\n[2,H_kv,d_head]", fontsize=8.6)
+    ax.annotate("", xy=(start_x + 7 * slot_w + 0.31, start_y - 0.62), xytext=(12.0, 5.18), arrowprops=dict(arrowstyle="->", lw=1.8, color=EMERALD))
 
+    ax.text(2.2, 4.42, "Block table lookup", ha="center", fontsize=11.2, weight="bold", color=TEXT)
+    add_rect(ax, (0.55, 2.82), 3.35, 1.22, "white", ec=SLATE, lw=1.1)
+    add_rect(ax, (0.55, 3.68), 3.35, 0.36, SLATE, text="logical block | physical | fill pointer", fontsize=7.2)
+    for i, row in enumerate([("L1", "P29", "full"), ("L2", "P42", "slot=15")]):
+        y = 3.4 - i * 0.36
+        ax.text(0.88, y, row[0], fontsize=7.7, color=TEXT)
+        ax.text(1.83, y, row[1], fontsize=7.7, color=TEXT)
+        ax.text(2.73, y, row[2], fontsize=7.7, color=TEXT)
+    ax.annotate("", xy=(4.1, 4.78), xytext=(3.9, 3.06), arrowprops=dict(arrowstyle="->", lw=1.2, color=ROYAL))
+
+    ax.text(7.3, 3.8, "Address arithmetic", ha="center", fontsize=11.2, weight="bold", color=TEXT)
     formulas = [
-        "slot_id = token_id mod 16 = 15",
-        "offset = base(P42) + slot_id * bytes(KV_token)",
-        "Delta memory = 1 * n_layers * 2 * H_kv * d_head * bytes",
+        "token_id = 63, block_size = 16",
+        "logical_block = floor(63/16) = L3",
+        "slot_id = 63 mod 16 = 15",
+        "addr = base(P42) + 15 * bytes(KV_token)",
     ]
     for i, txt in enumerate(formulas):
-        ax.text(10.9, 2.75 - i * 0.55, txt, fontsize=10.4, color=TEXT)
-    ax.text(10.9, 1.05, "Logical length: T -> T+1; physical write cost is one slot.", fontsize=10.1, color=SLATE)
+        ax.text(5.0, 3.38 - i * 0.34, txt, fontsize=8.3, color=TEXT)
+    ax.text(5.0, 1.78, "bytes(KV_token)=2*n_layers*H_kv*d_head*dtype_bytes", fontsize=8.1, color=SLATE)
+
+    ax.text(13.4, 3.8, "Allocator transition", ha="center", fontsize=11.2, weight="bold", color=TEXT)
+    add_rect(ax, (11.45, 2.9), 1.15, 0.56, ROYAL, text="P42\nfull", fontsize=7.4)
+    ax.annotate("", xy=(13.55, 3.18), xytext=(12.6, 3.18), arrowprops=dict(arrowstyle="->", lw=1.2, color=SLATE))
+    add_rect(ax, (13.55, 2.9), 1.15, 0.56, EMERALD, text="P77\nnew", fontsize=7.4)
+    ax.text(12.85, 2.48, "next token triggers\nfree-list pop", ha="center", fontsize=7.7, color=SLATE)
+
+    timeline = [("sample x_t", ROYAL), ("project K/V", EMERALD), ("write slot", EMERALD), ("attention", SLATE), ("sample x_{t+1}", ROYAL)]
+    for i, (label, color) in enumerate(timeline):
+        x = 2.0 + i * 2.55
+        add_rect(ax, (x, 0.78), 1.55, 0.42, color, text=label, fontsize=7.2)
+        if i < len(timeline) - 1:
+            ax.annotate("", xy=(x + 2.42, 0.99), xytext=(x + 1.55, 0.99), arrowprops=dict(arrowstyle="->", lw=1.0, color=SLATE))
 
     handles = [
-        patches.Patch(facecolor=ROYAL, label="Previously occupied slots"),
-        patches.Patch(facecolor=EMERALD, alpha=0.58, label="Current insertion slot"),
+        patches.Patch(facecolor=ROYAL, label="Existing KV slots / previous steps"),
+        patches.Patch(facecolor=EMERALD, alpha=0.65, label="Current step insertion and next page"),
+        patches.Patch(facecolor="#EEF2F6", edgecolor=SLATE, label="Scheduler metadata"),
     ]
-    ax.legend(handles=handles, loc="lower left", fontsize=9)
-    return save_fig(fig, "slide_04_decoding_slot_fill")
+    ax.legend(handles=handles, loc="lower left", fontsize=8.2)
+    return save_fig(fig, "slide_04_decoding_slot_fill", tight=False)
 
 
 def build_slide_5_figure() -> Path:
-    fig, ax = plt.subplots(figsize=(10.7, 6.4))
-    ax.set_xlim(0, 12)
-    ax.set_ylim(0, 7)
+    fig, ax = plt.subplots(figsize=(9.55, 7.0))
+    ax.set_xlim(0, 14)
+    ax.set_ylim(0, 8)
     ax.axis("off")
-    figure_title(ax, "PagedAttention Lookup Logic")
+    figure_title(ax, "PagedAttention Lookup Logic: From Logical Tokens to Gathered KV")
 
-    ax.text(1.55, 6.25, "Logical request R_i", fontsize=12, weight="bold", color=TEXT, ha="center")
+    ax.text(1.8, 7.1, "Logical sequence R_i", fontsize=11.5, weight="bold", color=TEXT, ha="center")
     logical = []
-    for i in range(6):
-        y = 5.45 - i * 0.65
-        logical.append((1.0, y))
-        add_rect(ax, (1.0, y), 1.05, 0.42, [ROYAL, EMERALD, SLATE][i % 3], text=f"L{i}", fontsize=9)
-    ax.text(1.53, 1.25, "Contiguous logical sequence", ha="center", fontsize=9, color=SLATE)
-
-    ax.text(5.15, 6.25, "Block Table", fontsize=12, weight="bold", color=TEXT, ha="center")
-    add_rect(ax, (4.15, 1.55), 2.0, 4.25, "white", ec=SLATE, lw=1.3)
-    header_h = 0.48
-    add_rect(ax, (4.15, 5.32), 2.0, header_h, SLATE, text="logical -> physical", fontsize=8.5)
     phys = [7, 2, 11, 4, 14, 9]
-    for i, p in enumerate(phys):
-        y = 4.72 - i * 0.56
-        add_rect(ax, (4.25, y), 0.72, 0.4, "#EEF2F6", text=f"L{i}", fontsize=8.5, ec=GRID, text_color=TEXT)
-        add_rect(ax, (5.05, y), 0.9, 0.4, [ROYAL, EMERALD, SLATE][i % 3], text=f"P{p}", fontsize=8.5)
-        ax.annotate("", xy=(4.15, y + 0.2), xytext=(2.05, logical[i][1] + 0.21), arrowprops=dict(arrowstyle="->", color=SLATE, lw=1.0))
+    for i in range(6):
+        y = 6.28 - i * 0.56
+        logical.append((0.55, y))
+        add_rect(ax, (0.55, y), 0.72, 0.36, [ROYAL, EMERALD, SLATE][i % 3], text=f"L{i}", fontsize=7.8)
+        ax.text(1.42, y + 0.18, f"tokens {i*16:02d}-{i*16+15:02d}", va="center", fontsize=7.5, color=SLATE)
+        for s in range(4):
+            add_rect(ax, (2.62 + s * 0.18, y + 0.06), 0.14, 0.14, [ROYAL, EMERALD, SLATE][i % 3], alpha=0.65, lw=0.2)
+        ax.text(3.42, y + 0.17, "...", fontsize=7.2, color=SLATE)
+    ax.text(0.55, 2.58, "Logical view is contiguous; only block ids are exposed to the kernel.", fontsize=7.9, color=SLATE)
 
-    ax.text(9.25, 6.25, "Non-contiguous physical memory", fontsize=12, weight="bold", color=TEXT, ha="center")
-    physical_positions = {
-        7: (8.3, 5.0),
-        2: (9.8, 4.0),
-        11: (7.3, 3.1),
-        4: (10.0, 2.3),
-        14: (8.65, 1.5),
-        9: (7.35, 4.55),
-    }
-    for pid, (x, y) in physical_positions.items():
-        add_rect(ax, (x, y), 0.95, 0.58, [ROYAL, EMERALD, SLATE][pid % 3], text=f"P{pid}", fontsize=9)
-        ax.text(x + 0.48, y - 0.14, f"0x{0xC000 + pid * 0x200:X}", ha="center", fontsize=7.2, color=SLATE)
+    ax.text(5.6, 7.1, "Block Table metadata", fontsize=11.5, weight="bold", color=TEXT, ha="center")
+    add_rect(ax, (4.25, 2.22), 2.95, 4.42, "white", ec=SLATE, lw=1.2)
+    add_rect(ax, (4.25, 6.24), 2.95, 0.4, SLATE, text="L | P | ref | valid", fontsize=7.6)
+    refs = [1, 1, 2, 1, 1, 1]
+    for i, p in enumerate(phys):
+        y = 5.86 - i * 0.56
+        add_rect(ax, (4.42, y), 0.43, 0.33, "#EEF2F6", text=f"L{i}", fontsize=7.1, ec=GRID, text_color=TEXT)
+        add_rect(ax, (5.05, y), 0.58, 0.33, [ROYAL, EMERALD, SLATE][i % 3], text=f"P{p}", fontsize=7.1)
+        ax.text(5.95, y + 0.17, str(refs[i]), ha="center", va="center", fontsize=7.3, color=TEXT)
+        ax.text(6.62, y + 0.17, "yes", ha="center", va="center", fontsize=7.0, color=EMERALD)
+        ax.annotate("", xy=(4.25, y + 0.16), xytext=(3.65, logical[i][1] + 0.18), arrowprops=dict(arrowstyle="->", color=[ROYAL, EMERALD, SLATE][i % 3], lw=0.8, alpha=0.72))
+
+    ax.text(10.15, 7.1, "GPU KV memory pool (non-contiguous)", fontsize=11.5, weight="bold", color=TEXT, ha="center")
+    physical_positions = {}
+    pid_grid = [2, 18, 7, 33, 5, 11, 24, 4, 14, 31, 9, 40, 45, 28, 6, 22]
+    used = set(phys)
+    for r in range(4):
+        for c in range(4):
+            idx = r * 4 + c
+            pid = pid_grid[idx]
+            x = 8.3 + c * 0.88
+            y = 5.9 - r * 0.66
+            physical_positions[pid] = (x, y)
+            is_used = pid in used
+            color = [ROYAL, EMERALD, SLATE][phys.index(pid) % 3] if is_used else "#EEF2F6"
+            add_rect(ax, (x, y), 0.74, 0.48, color, text=f"P{pid}" if is_used else "free", fontsize=7.1, ec=GRID if not is_used else "white", text_color=TEXT if not is_used else "white")
+            ax.text(x + 0.37, y - 0.09, f"0x{0xC000 + pid * 0x200:X}", ha="center", fontsize=5.7, color=SLATE)
 
     for i, pid in enumerate(phys):
-        src_y = 4.72 - i * 0.56 + 0.2
+        src_y = 5.86 - i * 0.56 + 0.16
         px, py = physical_positions[pid]
-        ax.annotate("", xy=(px, py + 0.29), xytext=(6.15, src_y), arrowprops=dict(arrowstyle="->", color=[ROYAL, EMERALD, SLATE][i % 3], lw=1.0, alpha=0.82))
+        ax.annotate("", xy=(px, py + 0.24), xytext=(7.2, src_y), arrowprops=dict(arrowstyle="->", color=[ROYAL, EMERALD, SLATE][i % 3], lw=0.9, alpha=0.75))
+
+    ax.text(10.15, 2.72, "Kernel gather order", fontsize=11.2, weight="bold", color=TEXT, ha="center")
+    gather_x = 7.85
+    for i, pid in enumerate(phys):
+        x = gather_x + i * 0.78
+        add_rect(ax, (x, 1.92), 0.62, 0.42, [ROYAL, EMERALD, SLATE][i % 3], text=f"P{pid}", fontsize=6.9)
+        ax.text(x + 0.31, 1.72, f"K/V{i}", ha="center", fontsize=6.5, color=SLATE)
+        if i < len(phys) - 1:
+            ax.annotate("", xy=(x + 0.77, 2.13), xytext=(x + 0.62, 2.13), arrowprops=dict(arrowstyle="->", lw=0.75, color=SLATE))
+    add_rect(ax, (12.75, 1.75), 0.85, 0.68, EMERALD, text="softmax\nQK^T", fontsize=6.7)
+    ax.annotate("", xy=(12.75, 2.1), xytext=(12.33, 2.1), arrowprops=dict(arrowstyle="->", lw=1.0, color=SLATE))
 
     ax.text(
-        6.0,
-        0.75,
-        "Attention gather order: [P7, P2, P11, P4, P14, P9] -> logically continuous KV sequence",
+        4.15,
+        0.95,
+        "for block_id in logical_blocks:  physical = block_table[block_id];  gather(K_cache[physical], V_cache[physical])",
         ha="center",
-        fontsize=9.7,
+        fontsize=8.0,
         color=TEXT,
-        bbox=dict(boxstyle="round,pad=0.35", fc=LIGHT_BG, ec=GRID),
+        bbox=dict(boxstyle="round,pad=0.32", fc=LIGHT_BG, ec=GRID),
     )
-    return save_fig(fig, "slide_05_paged_attention_lookup")
+    ax.text(10.1, 0.95, "Result: scattered physical pages are reconstructed as one logically continuous attention context.", fontsize=8.0, color=SLATE)
+    return save_fig(fig, "slide_05_paged_attention_lookup", tight=False)
 
 
 def build_slide_6_figure() -> Path:
