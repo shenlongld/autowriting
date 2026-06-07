@@ -7,6 +7,7 @@ import numpy as np
 import seaborn as sns
 from matplotlib import patches
 from matplotlib.lines import Line2D
+from PIL import Image
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
@@ -565,8 +566,23 @@ def add_header(slide, number: int, title: str) -> None:
 
 
 def add_left_image(slide, image_path: Path) -> None:
-    # Left pane occupies roughly 65% of the slide width.
-    slide.shapes.add_picture(str(image_path), Inches(0.33), Inches(0.96), width=Inches(8.35), height=Inches(6.12))
+    # Left pane occupies roughly 65% of the slide width; preserve the figure aspect ratio.
+    box_x, box_y, box_w, box_h = Inches(0.33), Inches(0.96), Inches(8.35), Inches(6.12)
+    with Image.open(image_path) as img:
+        img_w, img_h = img.size
+    image_ratio = img_w / img_h
+    box_ratio = box_w / box_h
+    if image_ratio >= box_ratio:
+        width = box_w
+        height = int(box_w / image_ratio)
+        left = box_x
+        top = int(box_y + (box_h - height) / 2)
+    else:
+        height = box_h
+        width = int(box_h * image_ratio)
+        left = int(box_x + (box_w - width) / 2)
+        top = box_y
+    slide.shapes.add_picture(str(image_path), left, top, width=width, height=height)
 
 
 def add_right_panel(slide, heading: str, sections: list[tuple[str, str]]) -> None:
